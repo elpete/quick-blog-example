@@ -120,3 +120,86 @@ And run the migration up.
 box migrate install
 box migrate up
 ```
+
+## Step 4
+Define a Post entity and show all posts.
+
+Start by installing Quick.
+
+```sh
+box install quick
+```
+
+We then need to add the necessary configuration.  The first piece is adding a mapping to `Application.cfc`.
+
+```cfc
+// Application.cfc
+component {
+    // ...
+	this.mappings[ "/quick" ] = COLDBOX_APP_ROOT_PATH & "/modules/quick";
+    // ...
+}
+```
+
+Now we define our first Quick entity - `models/Post.cfc`.
+
+We start by extending `quick.models.BaseEntity` and adding all the
+attributes we want to select from the database table.
+
+```cfc
+component extends="quick.models.BaseEntity" {
+
+    property name="id";
+    property name="title";
+    property name="body";
+    property name="createdDate";
+    property name="modifiedDate";
+
+}
+```
+
+With our entity created and some data in the table we can tie in Quick to ColdBox and show the data.
+Let's create a `Posts` handler with an `index` action. (You can use CommandBox for this if you like.)
+
+```sh
+box coldbox create handler name=Posts actions=index --!integrationTests
+```
+
+```cfc
+// handlers/Posts.cfc
+component {
+
+	function index( event, rc, prc ) {
+		prc.posts = getInstance( "Post" ).all();
+		event.setView( "Posts/index" );
+	}
+
+}
+```
+
+And lets customize the view a bit.
+
+```cfm
+<cfoutput>
+	<h1>Posts</h1>
+	<cfloop array="#prc.posts#" index="post">
+		<article>
+			<h2>#post.getTitle()#</h2>
+			<p>#post.getBody()#</p>
+		</article>
+	</cfloop>
+</cfoutput>
+```
+
+Reinit the app and voila!  You can see your posts!
+
+For good measure, we'll change the default event to point at our new `Posts.index` route.
+
+```cfc
+// config/ColdBox.cfc
+coldbox = {
+    // ...
+    defaultEvent = "Posts.index",
+    // ...
+}
+```

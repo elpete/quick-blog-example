@@ -26,6 +26,8 @@ component{
 	// COLDBOX APPLICATION KEY OVERRIDE
 	COLDBOX_APP_KEY 		 = "";
 
+	this.mappings[ "/quick" ] = COLDBOX_APP_ROOT_PATH & "/modules/quick";
+
 	this.datasource = "quick_blog_example";
 
 	// application start
