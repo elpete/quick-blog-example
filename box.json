@@ -30,5 +30,17 @@
     "dependencies":{
         "coldbox":"^5.0.0"
     },
-    "scripts":{}
+    "scripts":{},
+    "cfmigrations":{
+        "schema":"${DB_SCHEMA}",
+        "connectionInfo":{
+            "password":"${DB_PASSWORD}",
+            "connectionString":"${DB_CONNECTIONSTRING}",
+            "class":"${DB_CLASS}",
+            "username":"${DB_USER}",
+            "bundleName":"${DB_BUNDLENAME}",
+            "bundleVersion":"{DB_BUNDLEVERSION}"
+        },
+        "defaultGrammar":"AutoDiscover@qb"
+    }
 }

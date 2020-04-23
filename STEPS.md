@@ -53,3 +53,70 @@ component {
 	// ...
 }
 ```
+
+## Step 3
+Create a posts table
+
+There are many different ways we could create a `posts` table in our database.
+We are going to use commandbox-migrations and cfmigrations here, but you
+can create this any way you please.
+
+For our purposes we will install `commandbox-migrations` next.
+
+```sh
+box install commandbox-migrations
+```
+
+Next we will add the needed configuration to our `box.json`
+
+```json
+{
+	"cfmigrations":{
+        "schema":"${DB_SCHEMA}",
+        "connectionInfo":{
+            "password":"${DB_PASSWORD}",
+            "connectionString":"${DB_CONNECTIONSTRING}",
+            "class":"${DB_CLASS}",
+            "username":"${DB_USER}",
+            "bundleName":"${DB_BUNDLENAME}",
+            "bundleVersion":"{DB_BUNDLEVERSION}"
+        },
+        "defaultGrammar":"AutoDiscover@qb"
+    }
+}
+```
+
+Now we will add a migration for posts using CommandBox.
+
+```sh
+box migrate create create_posts_table
+```
+
+Fill in the newly created migration file with the code to create the `posts` table.
+
+```cfc
+component {
+
+    function up( schema, query ) {
+        schema.create( "posts", function( table ) {
+            table.increments( "id" );
+            table.string( "title" );
+            table.text( "body" );
+            table.timestamp( "createdDate" );
+            table.timestamp( "modifiedDate" );
+        } );
+    }
+
+    function down( schema, query ) {
+        schema.drop( "posts" );
+    }
+
+}
+```
+
+And run the migration up.
+
+```sh
+box migrate install
+box migrate up
+```
