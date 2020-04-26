@@ -37,4 +37,10 @@ component {
 		relocate( "posts.#post.getId()#" );
 	}
 
+	function delete( event, rc, prc ) {
+		var post = getInstance( "Post" ).findOrFail( rc.postId );
+		post.delete();
+		relocate( "posts" );
+	}
+
 }

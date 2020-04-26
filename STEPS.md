@@ -450,3 +450,37 @@ function update( event, rc, prc ) {
 ```
 
 Again, you would want validation on this endpoint before saving to the database, but this does the trick for now!
+
+## Step 9
+Allow deleting of Posts.
+
+Let's round out the CRUD actions on posts by adding a delete button to the edit page.
+We implement the delete action as a form so we can use the `DELETE` verb.
+
+```cfm
+<!-- views/posts/edit.cfm -->
+<cfoutput>
+	<div class="d-flex">
+		<h2 class="mr-3">Edit Post ###prc.post.getId()#</h2>
+	    #html.startForm( method = "DELETE", action = event.buildLink( "posts.#prc.post.getId()#" ) )#
+	        <button type="submit" class="btn btn-outline-danger">Delete</button>
+	    #html.endForm()#
+	</div>
+    #renderView( "posts/_form", {
+        "method": "PUT",
+        "action": event.buildLink( "posts.#prc.post.getId()#" )
+    } )#
+</cfoutput>
+```
+
+Additionally, we add the action to the `Posts` handler.
+
+```cfc
+function delete( event, rc, prc ) {
+    var post = getInstance( "Post" ).findOrFail( rc.postId );
+    post.delete();
+    relocate( "posts" );
+}
+```
+
+That rounds out the CRUD actions!
