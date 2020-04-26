@@ -11,6 +11,7 @@ component {
 	}
 
 	function new( event, rc, prc ) {
+		prc.post = getInstance( "Post" );
 		event.setView( "posts/new" );
 	}
 

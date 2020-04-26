@@ -314,3 +314,83 @@ function create( event, rc, prc ) {
 ```
 
 Normally this endpoint would need to handle validation as well.  We may come back to that in a later step.
+
+## Step 7
+Refactor new post form to use blank Post.
+
+The next step is to add the edit and update actions.
+It would be nice to reuse the same form we created for `new`.
+We know that the `edit` action will pass along the Post to edit,
+and we'd rather not have a bunch of `cfif` tags in our view.
+To mitigate this, let's pass a blank Post in to the form from
+our `new` action.
+
+First, let's edit the `new` action to pass a blank Post.
+
+```cfc
+// handlers/Posts.cfc
+function new( event, rc, prc ) {
+    prc.post = getInstance( "Post" );
+    event.setView( "posts/new" );
+}
+```
+
+Next, we will use the Post as the `value` for our form elements.
+
+```cfm
+<!-- views/posts/new.cfm -->
+<cfoutput>
+	<h2>Create a new post</h2>
+	<form method="POST" action="#event.buildLink( "posts" )#">
+		<div class="form-group">
+			<label for="title">Title</label>
+			<input type="text" class="form-control" name="title" id="title" value="#prc.post.getTitle()#">
+		</div>
+		<div class="form-group">
+			<label for="body">Body</label>
+			<textarea class="form-control" name="body" id="body" rows="3">#prc.post.getBody()#</textarea>
+		</div>
+		<a href="#event.buildLink( "posts" )#" class="btn btn-outline">Back</a>
+		<button type="submit" class="btn btn-primary">Submit</button>
+	</form>
+</cfoutput>
+```
+
+Finally, let's extract the form as a new view.  We'll call it `_form`.  In this case
+the underscore represents a partial or a view that is not loaded directly from a handler
+but rather from another view.  This is just a convention, not a requirement. In addition,
+we need to accept the method and action as view arguments since this will change
+between `create` and `update`.  We will also switch to using the `HTMLHelper` for our `form` tags
+to help send the correct method. (Read why here: https://coldbox.ortusbooks.com/the-basics/routing/http-method-spoofing)
+
+```cfm
+<!-- views/posts/_form.cfm -->
+<cfoutput>
+    #html.startForm( method = args.method, action = args.action )#
+		<div class="form-group">
+			<label for="title">Title</label>
+			<input type="text" class="form-control" name="title" id="title" value="#prc.post.getTitle()#">
+		</div>
+		<div class="form-group">
+			<label for="body">Body</label>
+			<textarea class="form-control" name="body" id="body" rows="3">#prc.post.getBody()#</textarea>
+		</div>
+		<a href="#event.buildLink( "posts" )#" class="btn btn-outline">Back</a>
+		<button type="submit" class="btn btn-primary">Submit</button>
+    #html.endForm()#
+</cfoutput>
+```
+
+```cfm
+<!-- views/posts/new.cfm -->
+<cfoutput>
+	<h2>Create a new post</h2>
+    #renderView( "posts/_form", {
+		"method": "POST",
+		"action": event.buildLink( "posts" )
+	} )#
+</cfoutput>
+
+```
+
+With our refactor done, we are now ready to move on to the edit and update actions.
