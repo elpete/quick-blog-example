@@ -27,6 +27,8 @@ component{
 			};
 		} );
 
+		get( "/posts/:postId", "Posts.show" );
+
 		// Conventions based routing
 		route( ":handler/:action?" ).end();
 	}

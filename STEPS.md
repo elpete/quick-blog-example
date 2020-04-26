@@ -203,3 +203,41 @@ coldbox = {
     // ...
 }
 ```
+
+## Step 5
+Define the Posts.show route
+
+To start, we need to add a new route to our router to handle showing a single Post.
+This route can go anywhere above the convention route - `route( ":handler/:action?" ).end();`.
+
+```cfc
+// config/Router.cfc
+function configure() {
+    // ...
+    get( "/posts/:postId", "Posts.show" );
+    // ...
+}
+```
+
+Next let's add the new `show` action to `Posts`.
+
+```cfc
+function show( event, rc, prc ) {
+    prc.post = getInstance( "Post" ).findOrFail( rc.postId );
+    event.setView( "posts/show" );
+}
+```
+
+Here's the content of the view:
+
+```cfm
+<cfoutput>
+	<article>
+		<h2>#prc.post.getTitle()#</h2>
+		<p>#prc.post.getBody()#</p>
+	</article>
+	<a href="#event.buildLink( "posts" )#">Back</a>
+</cfoutput>
+```
+
+We can now view our post individually.
