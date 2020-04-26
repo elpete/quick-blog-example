@@ -27,7 +27,9 @@ component{
 			};
 		} );
 
+		get( "/posts/new", "Posts.new" );
 		get( "/posts/:postId", "Posts.show" );
+		route( "/posts" ).withHandler( "Posts" ).toAction( { "GET": "index", "POST": "create" } );
 
 		// Conventions based routing
 		route( ":handler/:action?" ).end();

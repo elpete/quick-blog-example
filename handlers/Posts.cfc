@@ -10,4 +10,16 @@ component {
 		event.setView( "posts/show" );
 	}
 
+	function new( event, rc, prc ) {
+		event.setView( "posts/new" );
+	}
+
+	function create( event, rc, prc ) {
+		getInstance( "Post" ).create( {
+			"title": rc.title,
+			"body": rc.body,
+		} );
+		relocate( "posts" );
+	}
+
 }

@@ -147,6 +147,7 @@ We start by extending `quick.models.BaseEntity` and adding all the
 attributes we want to select from the database table.
 
 ```cfc
+// models/Post.cfc
 component extends="quick.models.BaseEntity" {
 
     property name="id";
@@ -180,6 +181,7 @@ component {
 And lets customize the view a bit.
 
 ```cfm
+<!-- views/posts/index.cfm -->
 <cfoutput>
 	<h1>Posts</h1>
 	<cfloop array="#prc.posts#" index="post">
@@ -222,6 +224,7 @@ function configure() {
 Next let's add the new `show` action to `Posts`.
 
 ```cfc
+// handlers/Posts.cfc
 function show( event, rc, prc ) {
     prc.post = getInstance( "Post" ).findOrFail( rc.postId );
     event.setView( "posts/show" );
@@ -231,6 +234,7 @@ function show( event, rc, prc ) {
 Here's the content of the view:
 
 ```cfm
+<!-- views/posts/show.cfm -->
 <cfoutput>
 	<article>
 		<h2>#prc.post.getTitle()#</h2>
@@ -241,3 +245,72 @@ Here's the content of the view:
 ```
 
 We can now view our post individually.
+
+## Step 6
+Create route to create new posts.
+
+First step is to add a couple new routes to our `Posts` handler.
+One of the routes is for the GET request for the `/posts/new` action
+while the other is the POST request to `/posts` to create the post.
+The `/posts/new` route needs to go ABOVE the wildcard route we added
+in the last section.  Otherwise the wildcard route will catch it.
+The POST route needs to be merged with the already defined GET request.
+Each route can only be defined once, so we need to define all the actions
+on one route.
+
+```diff
+// config/Router.cfc
+function configure() {
+    // ...
+    get( "/posts/new", "Posts.new" );
+    get( "/posts/:postId", "Posts.show" );
+    route( "/posts" ).withHandler( "Posts" ).toAction( { "GET": "index", "POST": "create" } );
+    // ...
+}
+```
+
+The router configuration is getting a bit more complicated.  We'll clean it up in the next step
+by using ColdBox's `resources` conventions.
+
+Next we define the `new` action which should show a form to create a new Post.
+
+```
+// handlers/Posts.cfc
+function new( event, rc, prc ) {
+    event.setView( "posts/new" );
+}
+```
+
+```
+<!-- views/posts/new.cfm -->
+<cfoutput>
+	<h2>Create a new post</h2>
+	<form method="POST" action="#event.buildLink( "posts" )#">
+		<div class="form-group">
+			<label for="title">Title</label>
+			<input type="text" class="form-control" name="title" id="title">
+		</div>
+		<div class="form-group">
+			<label for="body">Body</label>
+			<textarea class="form-control" name="body" id="body" rows="3"></textarea>
+		</div>
+		<a href="#event.buildLink( "posts" )#" class="btn btn-outline">Back</a>
+		<button type="submit" class="btn btn-primary">Submit</button>
+	</form>
+</cfoutput>
+```
+
+Lastly, we add the `create` action to handle creating the new Post.
+
+```
+// handlers/Post.cfc
+function create( event, rc, prc ) {
+    getInstance( "Post" ).create( {
+        "title": rc.title,
+        "body": rc.body,
+    } );
+    relocate( "posts" );
+}
+```
+
+Normally this endpoint would need to handle validation as well.  We may come back to that in a later step.
