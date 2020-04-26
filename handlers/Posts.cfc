@@ -23,4 +23,18 @@ component {
 		relocate( "posts" );
 	}
 
+	function edit( event, rc, prc ) {
+		prc.post = getInstance( "Post" ).findOrFail( rc.postId );
+		event.setView( "posts/edit" );
+	}
+
+	function update( event, rc, prc ) {
+		var post = getInstance( "Post" ).findOrFail( rc.postId );
+		post.update( {
+			"title": rc.title,
+			"body": rc.body
+		} );
+		relocate( "posts.#post.getId()#" );
+	}
+
 }

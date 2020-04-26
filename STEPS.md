@@ -394,3 +394,59 @@ to help send the correct method. (Read why here: https://coldbox.ortusbooks.com/
 ```
 
 With our refactor done, we are now ready to move on to the edit and update actions.
+
+## Step 8
+Add edit and update actions for Posts.
+
+Let's start with the Router.  We mentioned previously that we would clean up the routes file
+using ColdBox's `resources` convention.  The `resources` convention creates seven different
+routes for common CREATE, READ, UPDATE, and DELETE (CRUD) actions.
+We can replace all our custom routes with this one call:
+
+```
+// config/Router.cfc
+function configure() {
+    // ...
+    resources( resource = "posts", parameterName = "postId" );
+    // ...
+}
+
+This creates the routes we previously had for posts as well as the routes we will need
+for `edit`, `update`, and `delete`.  Now it's time to create the new `edit` action and view.
+
+```cfc
+// handlers/Posts.cfc
+function edit( event, rc, prc ) {
+    prc.post = getInstance( "Post" ).findOrFail( rc.postId );
+    event.setView( "posts/edit" );
+}
+```
+
+```cfm
+<!-- views/posts/edit.cfm -->
+<cfoutput>
+	<h2>Edit Post ###prc.post.getId()#</h2>
+    #renderView( "posts/_form", {
+        "method": "PUT",
+        "action": event.buildLink( "posts.#prc.post.getId()#" )
+    } )#
+</cfoutput>
+```
+
+Now we see our refactoring helping us out!
+
+Lastly, we need to add an `update` action to handle persisting the changes to our database.
+After saving, we will redirect to the `show` action for the edited Post.
+
+```cfc
+function update( event, rc, prc ) {
+    var post = getInstance( "Post" ).findOrFail( rc.postId );
+    post.update( {
+        "title": rc.title,
+        "body": rc.body
+    } );
+    relocate( "posts.#post.getId()#" );
+}
+```
+
+Again, you would want validation on this endpoint before saving to the database, but this does the trick for now!
