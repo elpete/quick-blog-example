@@ -1,21 +1,14 @@
 {
-    "name":"My ColdBox App",
+    "name":"quick-blog-example",
     "version":"1.0.0",
-    "author":"You",
-    "location":"",
-    "slug":"my-coldbox-app",
-    "createPackageDirectory":false,
+    "author":"Eric Peterson <eric@ortussolutons.com>",
     "type":"mvc",
-    "keywords":"",
-    "homepage":"",
-    "documentation":"",
+    "keywords":"quick,orm,example,coldbox",
     "repository":{
-        "type":"",
-        "url":""
+        "type":"git",
+        "url":"https://github.com/elpete/quick-blog-example"
     },
-    "bugs":"",
-    "shortDescription":"",
-    "contributors":[],
+    "shortDescription":"An example blog built with ColdBox and Quick",
     "ignore":[],
     "devDependencies":{
         "testbox":"^3.0.0",
@@ -43,6 +36,7 @@
             "bundleName":"${DB_BUNDLENAME}",
             "bundleVersion":"{DB_BUNDLEVERSION}"
         },
-        "defaultGrammar":"AutoDiscover@qb"
+        "defaultGrammar":"MySQLGrammar@qb",
+        "migrationsDirectory": "resources/database/migrations"
     }
 }

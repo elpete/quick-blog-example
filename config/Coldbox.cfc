@@ -49,7 +49,12 @@ component{
 
 		// custom settings
 		settings = {
-
+			"qb": {
+				"defaultGrammar": "MySQLGrammar@qb"
+			},
+			"quick": {
+				"defaultGrammar": "MySQLGrammar@qb"
+			}
 		};
 
 		// environment settings, create a detectEnvironment() method to detect it yourself.
