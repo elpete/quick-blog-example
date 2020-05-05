@@ -425,7 +425,7 @@ Lastly, we add the `create` action to handle creating the new Post.
 +      getInstance( "Post" ).create( {
 +          "title": rc.title,
 +          "body": rc.body,
-+          "userId": auth().user().getId()
++          "userId": auth().getUserId()
 +      } );
 +      relocate( "posts" );
 +  }
@@ -807,6 +807,7 @@ To use eager loading, you use the `with` method when executing your query.
 method names.  Here's is our adjusted `Posts.index` action:
 
 ```diff
+// handlers/Posts.cfc
 function index( event, rc, prc ) {
 -   prc.posts = getInstance( "Post" ).all();
 +   prc.posts = getInstance( "Post" ).with( "author" ).all();
@@ -903,6 +904,7 @@ component secured {
     function create( event, rc, prc ) {
         getInstance( "Comment" ).create( {
             "postId": rc.postId,
+            "userId": auth().getUserId(),
             "body": rc.body
         } );
         relocate( "posts.#rc.postId#" );
@@ -924,13 +926,14 @@ function configure() {
 
 Finally we need a new Comment entity.
 
-```
+```cfc
 // models/entities/Comment.cfc
 component extends="quick.models.BaseEntity" accessors="true" {
 
     property name="id";
     property name="body";
     property name="postId";
+    property name="userId";
     property name="createdDate";
     property name="modifiedDate";
 
@@ -939,6 +942,10 @@ component extends="quick.models.BaseEntity" accessors="true" {
         arguments.body = replaceNoCase( arguments.body, chr( 10 ), "<br>", "all" );
         assignAttribute( "body", arguments.body );
         return this;
+    }
+
+    function commenter() {
+        return belongsTo( "User" );
     }
 
 }
@@ -963,6 +970,10 @@ component {
                 .references( "id" )
                 .onTable( "posts" )
                 .onDelete( "CASCADE" );
+            table.unsignedInteger( "userId" )
+                .references( "id" )
+                .onTable( "users" )
+                .onDelete( "CASCADE" );
             table.timestamp( "createdDate" );
             table.timestamp( "modifiedDate" );
         } );
@@ -973,6 +984,10 @@ component {
     }
 
 }
+```
+
+```sh
+box migrate up
 ```
 
 And now our new form works.  But we can't see existing comments on the page yet!
@@ -1033,22 +1048,30 @@ prefixed by `get` - `getComments()`.  We'll add a `<cfloop>` to the view to show
     <a href="#event.buildLink( "posts" )#">Back</a>
 +   <hr />
 +   <h3>Comments</h3>
-+   <cfloop array="#prc.post.getComments()#" index="comment">
++   <cfif prc.post.getComments().isEmpty()>
 +       <div class="card card-body bg-light mb-2">
-+           <small>#dateTimeFormat( comment.getCreatedDate(), "full" )#</small>
-+           <p>#comment.getBody()#</p>
++           <p>No comments yet.</p>
 +       </div>
-+   </cfloop>
-    <hr />
-    #html.startForm( method = "POST", action = event.buildLink( "posts.#prc.post.getId()#.comments" ) )#
-        <div class="form-group">
-            <label for="body">Add a comment</label>
-            <textarea class="form-control" name="body" id="body" rows="3"></textarea>
-        </div>
-        <div class="form-group">
-            <button type="submit" class="btn btn-primary">Comment</button>
-        </div>
-    #html.endForm()#
++   <cfelse>
++       <cfloop array="#prc.post.getComments()#" index="comment">
++           <div class="card card-body bg-light mb-2">
++               <small>#dateTimeFormat( comment.getCreatedDate(), "full" )# by #comment.getCommenter().getEmail()#</small>
++               <p>#comment.getBody()#</p>
++           </div>
++       </cfloop>
++   </cfif>
+    <cfif auth().check()>
+        <hr />
+        #html.startForm( method = "POST", action = event.buildLink( "posts.#prc.post.getId()#.comments" ) )#
+            <div class="form-group">
+                <label for="body">Add a comment</label>
+                <textarea class="form-control" name="body" id="body" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+                <button type="submit" class="btn btn-primary">Comment</button>
+            </div>
+        #html.endForm()#
+    </cfif>
 </cfoutput>
 ```
 
@@ -1056,6 +1079,55 @@ There we go!  Comments are now shown on each posts.
 (Note that we also include an empty state. Good UI practice.)
 
 ## Step 17
+Eager load commenters
+
+Each comment has a User it belongs to referenced by the `commenter` relationship.
+When we display each comment we also display the User's email that commented.
+This creates another N+1 problem.  We can verify it in the cbdebugger panel.
+
+With relationships, we're not limited to just the relationship function.  Each
+relationship is a full builder that can be configured like any other entity.
+That means we can add an eager load using the `with` method inside our `commenter`
+relationship method.
+
+```diff
+// models/entities/Post.cfc
+component extends="quick.models.BaseEntity" accessors="true" {
+
+    property name="id";
+    property name="title";
+    property name="body";
+    property name="userId";
+    property name="createdDate";
+    property name="modifiedDate";
+
+    function getExcerpt() {
+        return variables._str.limitWords( this.getBody(), 30 );
+    }
+
+    function setBody( body ) {
+        arguments.body = replaceNoCase( arguments.body, chr( 13 ) & chr( 10 ), "<br>", "all" );
+        arguments.body = replaceNoCase( arguments.body, chr( 10 ), "<br>", "all" );
+        assignAttribute( "body", arguments.body );
+        return this;
+    }
+
+    function author() {
+        return belongsTo( "User" );
+    }
+
+    function comments() {
+-       return hasMany( "Comment" );
++       return hasMany( "Comment" ).with( "commenter" );
+    }
+
+}
+```
+
+Sometimes it will make sense to default the relationship with an eager load
+and other times it will not.  You will need to evaluate each use case individually.
+
+## Step 18
 Refactor create methods to use relationships.
 
 Let's try something.  Using Postman or another tool like it send a POST request to
@@ -1126,7 +1198,7 @@ function create( event, rc, prc ) secured {
 +   auth().user().posts().create( {
         "title": rc.title,
         "body": rc.body,
--       "userId": auth().user().getId()
+-       "userId": auth().getUserId()
     } );
     relocate( "posts" );
 }
@@ -1145,6 +1217,7 @@ function create( event, rc, prc ) {
 +   post.comments().create( {
 -   getInstance( "Comment" ).create( {
 -       "postId": rc.postId,
+        "userId": auth().getUserId(),
         "body": rc.body
     } );
     relocate( "posts.#rc.postId#" );
@@ -1154,7 +1227,7 @@ function create( event, rc, prc ) {
 This accomplishes the other goal we had in mind - this route will return
 a 404 Not Found if an invalid `postId` is passed.
 
-## Step 18
+## Step 19
 Introduce Tags.
 
 A Tag showcases a new relationship type - a many-to-many or `belongsToMany`
@@ -1459,7 +1532,7 @@ Last step - let's add the list of tags to the `Posts.show` and `Posts.index` act
 
 Step back and check out your work!
 
-## Step 19
+## Step 20
 Eager load tags on `Posts.index`.
 
 Check out your `Posts.index` action now.  If many of your Posts have tags,
@@ -1467,6 +1540,7 @@ you are going to see a lot of queries again.  The N+1 problem is back.
 Let's reach for eager loading and the `with` method again.
 
 ```diff
+// handlers/Posts.cfc
 function index( event, rc, prc ) {
 -   prc.posts = getInstance( "Post" ).with( "author" ).all();
 +   prc.posts = getInstance( "Post" ).with( [ "author", "tags" ] ).all();
@@ -1475,3 +1549,101 @@ function index( event, rc, prc ) {
 ```
 
 That's it!  N+1 problem solved.
+
+## Step 21
+Order by post created date using a `latest` scope.
+
+Here's a simple one.  We want all the Posts on the `Posts.index` page
+displayed in descending order.  That is the most recently created Post
+should be on top.
+
+You can use any qb method on a Quick entity.  That means we can do this to order the Posts.
+
+```diff
+// handlers/Posts.cfc
+function index( event, rc, prc ) {
+-   prc.posts = getInstance( "Post" ).with( [ "author", "tags" ] ).all();
++   prc.posts = getInstance( "Post" )
++       .with( [ "author", "tags" ] )
++       .orderByDesc( "createdDate" )
++       .get();
+    event.setView( "posts/index" );
+}
+```
+
+This works fine, but we can do better.  We mentioned earlier that one of
+the main benefits of Quick was naming bits of SQL code.  This can be as small
+as our order by call above.  Let's give it the name `latest` and introduce
+it as a scope to our Post entity.
+
+```diff
+// models/entities/Post.cfc
+component extends="quick.models.BaseEntity" accessors="true" {
+
+    property name="id";
+    property name="title";
+    property name="body";
+    property name="userId";
+    property name="createdDate";
+    property name="modifiedDate";
+
+    function getExcerpt() {
+        return variables._str.limitWords( this.getBody(), 30 );
+    }
+
+    function setBody( body ) {
+        arguments.body = replaceNoCase( arguments.body, chr( 13 ) & chr( 10 ), "<br>", "all" );
+        arguments.body = replaceNoCase( arguments.body, chr( 10 ), "<br>", "all" );
+        assignAttribute( "body", arguments.body );
+        return this;
+    }
+
+    function author() {
+        return belongsTo( "User" );
+    }
+
+    function comments() {
+        return hasMany( "Comment" );
+    }
+
+    function tags() {
+        return belongsToMany( "Tag" );
+    }
+
+    function hasTag( tag ) {
+        return this.getTags().map( function( tag ) {
+            return tag.getId();
+        } ).contains( arguments.tag.getId() );
+    }
+
++   function scopeLatest( q ) {
++       q.orderByDesc( "createdDate" );
++   }
+
+}
+```
+
+Scopes are special methods in Quick that receives the current builder instance as the first parameter.
+Inside a scope you can configure your query in any way you need.
+
+You call scopes without using the `scope` prefix, like so:
+
+```diff
+// handlers/Posts.cfc
+function index( event, rc, prc ) {
+    prc.posts = getInstance( "Post" )
+        .with( [ "author", "tags" ] )
+-       .orderByDesc( "createdDate" )
++       .latest()
+        .get();
+    event.setView( "posts/index" );
+}
+```
+
+Seems like a simple change, right?  Maybe you are thinking it is only
+useful for large chunks of SQL code.  But even this encapsulation is beneficial!
+Now, when how we define the `latest` ordering changes, we have one place to change it.
+Maybe you introduce the idea of promoted posts later and those need to be
+first no matter what. You can make the change in your scope and any query
+using that scope gets the new behavior automatically.  Scopes and relationships
+really are the power behind Quick.
