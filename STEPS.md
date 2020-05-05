@@ -1238,10 +1238,10 @@ and a Tag can be associated with 0 or more Posts.
 
 Let's begin with a migration file.  Two migrations, actually.  That is
 because to represent a many-to-many relationship you need an
-intermediate or pivot table.  By default, Quick uses the entity names
-in alphabetical order separated by an underscore.  So for the table
+intermediate or pivot table.  By default, Quick uses the table names of each
+entity in alphabetical order separated by an underscore.  So for the table
 between our Post entity and our Tag entity, Quick will use a default
-of `post_tag`.  You are, of course, free to use your own conventions.
+of `posts_tags`.  You are, of course, free to use your own conventions.
 
 ```sh
 box migrate create create_tags_table
@@ -1265,14 +1265,14 @@ component {
 ```
 
 ```sh
-box migrate create create_post_tag_table
+box migrate create create_posts_tags_table
 ```
 
 ```cfc
 component {
 
     function up( schema, query ) {
-        schema.create( "post_tag", function( table ) {
+        schema.create( "posts_tags", function( table ) {
             table.unsignedInteger( "postId" )
                 .references( "id" )
                 .onTable( "posts" )
@@ -1287,7 +1287,7 @@ component {
     }
 
     function down( schema, query ) {
-        schema.drop( "post_tag" );
+        schema.drop( "posts_tags" );
     }
 
 }
@@ -1300,7 +1300,7 @@ box migrate up
 Let's create our Tag entity next.
 
 ```cfc
-/models/entities/Tag.cfc
+// models/entities/Tag.cfc
 component extends="quick.models.BaseEntity" accessors="true" {
 
     property name="id";
@@ -1352,6 +1352,10 @@ component extends="quick.models.BaseEntity" accessors="true" {
 +   }
 +
 +   function hasTag( tag ) {
++       if ( !this.isLoaded() ) {
++           return false;
++       }
++
 +       return this.getTags().map( function( tag ) {
 +           return tag.getId();
 +       } ).contains( arguments.tag.getId() );
@@ -1364,6 +1368,10 @@ component extends="quick.models.BaseEntity" accessors="true" {
 We also added a helper function - `hasTag` - in our view to select the already selected tags.
 
 Next, create some tags manually through a database UI.  Four or five should be enough.
+
+```sql
+INSERT INTO `tags` (`name`) VALUES ('coldbox'), ('testbox'), ('commandbox'), ('quick'), ('qb')
+```
 
 Let's show the available tags on our `Posts.new` and `Posts.edit` form.
 The first step is to add all the tags to our `prc` in those actions.
@@ -1402,7 +1410,7 @@ Next we'll display the tags in a select field on the form.
 +           <select class="form-control" name="tags[]" multiple="true" id="tags">
 +               <cfloop array="#prc.tags#" index="tag">
 +                   <option
-+                       value="#tag.getId()#
++                       value="#tag.getId()#"
 +                       <cfif prc.post.hasTag( tag )>selected</cfif>
 +                   >
 +                       #tag.getName()#
@@ -1468,7 +1476,7 @@ Last step - let's add the list of tags to the `Posts.show` and `Posts.index` act
 -       <small class="mb-4">By #prc.post.getAuthor().getEmail()#</small>
 +       <small>By #prc.post.getAuthor().getEmail()#</small>
 +       <div class="mb-4">
-+           <cfloop array="#prc.post.getTags()# index="tag">
++           <cfloop array="#prc.post.getTags()#"s index="tag">
 +               <span class="badge badge-pill badge-info">#tag.getName()#</span>
 +           </cfloop>
 +       </div>
@@ -1514,7 +1522,7 @@ Last step - let's add the list of tags to the `Posts.show` and `Posts.index` act
                     <h5 class="card-title">#post.getTitle()#</h5>
                     <h6 class="card-subtitle mb-2 text-muted">By #post.getAuthor().getEmail()#</h6>
 +                   <div class="mb-2">
-+                       <cfloop array="#post.getTags()# index="tag">
++                       <cfloop array="#post.getTags()#" index="tag">
 +                           <span class="badge badge-pill badge-info">#tag.getName()#</span>
 +                       </cfloop>
 +                   </div>
@@ -1611,6 +1619,10 @@ component extends="quick.models.BaseEntity" accessors="true" {
     }
 
     function hasTag( tag ) {
+        if ( !this.isLoaded() ) {
+            return false;
+        }
+
         return this.getTags().map( function( tag ) {
             return tag.getId();
         } ).contains( arguments.tag.getId() );
