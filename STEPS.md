@@ -19,7 +19,12 @@ If you do not have a MySQL database, either download MySQL for your operating sy
 or use the following Docker command:
 
 ```sh
-docker run -d --name=quick_blog_example -p 3306:3306 -e MYSQL_DATABASE=quick_blog_example -e MYSQL_ROOT_PASSWORD=root mysql:5
+docker run -d \
+    --name=quick_blog_example \
+    -p 3306:3306 \
+    -e MYSQL_DATABASE=quick_blog_example \
+    -e MYSQL_ROOT_PASSWORD=root \
+    mysql:5
 ```
 
 Next, we'll fill out our `.env` file.
@@ -47,14 +52,15 @@ Now, when we start our server, our datasource will be available.
 
 Last, we will configure our new datasource as our default datasource in `Application.cfc`:
 
-```cfc
+```diff
 // Application.cfc
 component {
-	// ...
+    // ...
 
-	this.datasource = "quick_blog_example";
+-  this.datasource = "coldbox";
++  this.datasource = "quick_blog_example";
 
-	// ...
+    // ...
 }
 ```
 
@@ -114,13 +120,15 @@ box migrate up
 ## Step 4
 Define a Post entity and show all posts.
 
-Now we define our first Quick entity - `models/Post.cfc`.
+Now we define our first Quick entity - `models/entities/Post.cfc`.
+
+(Note that the `/models/entities` directory is chosen entirely for aesthetics.)
 
 We start by extending `quick.models.BaseEntity` and adding all the attributes
 we want to select from the database table.
 
 ```cfc
-// models/Post.cfc
+// models/entities/Post.cfc
 component extends="quick.models.BaseEntity" accessors="true" {
 
     property name="id";
@@ -147,20 +155,20 @@ box coldbox create handler name=Posts actions=index --!integrationTests
 // handlers/Posts.cfc
 component {
 
-	function index( event, rc, prc ) {
-		prc.posts = getInstance( "Post" ).all();
-		event.setView( "Posts/index" );
-	}
+    function index( event, rc, prc ) {
+        prc.posts = getInstance( "Post" ).all();
+        event.setView( "Posts/index" );
+    }
 
 }
 ```
 
-And lets customize the view a bit.
+And let's customize the view a bit.
 
 ```cfm
 <!-- views/posts/index.cfm -->
 <cfoutput>
-	<h1>Posts</h1>
+    <h1>Posts</h1>
     <cfif prc.posts.isEmpty()>
         <div class="card mb-3">
             <div class="card-body">
@@ -184,38 +192,39 @@ Reinit the app and voila!  You can see your posts!
 
 For good measure, we'll change the default event to point at our new `Posts.index` route.
 
-```cfc
+```diff
 // config/ColdBox.cfc
 coldbox = {
     // ...
-    defaultEvent = "Posts.index",
+-   defaultEvent : ""
++   defaultEvent : "Posts.index",
     // ...
 }
 ```
 
 ## Step 5
-Define the Posts.show route
+Define the `Posts.show` route
 
 To start, we need to add a new route to our router to handle showing a single Post.
 This route can go anywhere above the convention route - `route( ":handler/:action?" ).end();`.
 
-```cfc
+```diff
 // config/Router.cfc
 function configure() {
     // ...
-    get( "/posts/:postId", "Posts.show" );
++   get( "/posts/:postId", "Posts.show" );
     // ...
 }
 ```
 
 Next let's add the new `show` action to `Posts`.
 
-```cfc
+```diff
 // handlers/Posts.cfc
-function show( event, rc, prc ) {
-    prc.post = getInstance( "Post" ).findOrFail( rc.postId );
-    event.setView( "posts/show" );
-}
++ function show( event, rc, prc ) {
++     prc.post = getInstance( "Post" ).findOrFail( rc.postId );
++     event.setView( "posts/show" );
++ }
 ```
 
 Here's the content of the view:
@@ -223,20 +232,20 @@ Here's the content of the view:
 ```cfm
 <!-- views/posts/show.cfm -->
 <cfoutput>
-	<article>
-		<h2>#prc.post.getTitle()#</h2>
-		<p>#prc.post.getBody()#</p>
-	</article>
-	<a href="#event.buildLink( "posts" )#">Back</a>
+    <article>
+        <h2>#prc.post.getTitle()#</h2>
+        <p>#prc.post.getBody()#</p>
+    </article>
+    <a href="#event.buildLink( "posts" )#">Back</a>
 </cfoutput>
 ```
 
-We also add a link from our Posts.index page to the individual show view.
+We also add a link from our `Posts.index` page to the individual show view.
 
-```cfm
+```diff
 <!-- views/posts/index.cfm -->
 <cfoutput>
-	<h1>Posts</h1>
+    <h1>Posts</h1>
     <cfif prc.posts.isEmpty()>
         <div class="card mb-3">
             <div class="card-body">
@@ -249,7 +258,7 @@ We also add a link from our Posts.index page to the individual show view.
                 <div class="card-body">
                     <h5 class="card-title">#post.getTitle()#</h5>
                     <p class="card-text">#post.getBody()#</p>
-                    <a href="#event.buildLink( "posts.#post.getId()#" )#" class="card-link">Read</a>
++                   <a href="#event.buildLink( "posts.#post.getId()#" )#" class="card-link">Read</a>
                 </div>
             </div>
         </cfloop>
@@ -260,6 +269,67 @@ We also add a link from our Posts.index page to the individual show view.
 We can now view each post individually.
 
 ## Step 6
+Add a getExcerpt helper method to Post.
+
+A Post body may be very long.  We don't want to display the entire body in the list of posts.
+Instead, we'd like to just show an excerpt.  At the same time, we don't want to put that on
+the User.  Instead, we'd like it to be programmatic.  Let's take a look at how we can accomplish this.
+
+You can add any methods you want to a Quick entity.  Here, we'll add a `getExcerpt`
+method to do the work we need.
+
+```diff
+// models/entities/Post.cfc
+component extends="quick.models.BaseEntity" accessors="true" {
+
+    property name="id";
+    property name="title";
+    property name="body";
+    property name="userId";
+    property name="createdDate";
+    property name="modifiedDate";
+
++   function getExcerpt() {
++       return variables._str.limitWords( this.getBody(), 30 );
++   }
+
+}
+```
+
+We are lucky to have the Str helper library available in each Quick entity
+already, so we'll go ahead and use its `limitWords` function to create
+our excerpt. A simpler version could be `return left( this.getBody(), 100 );`
+
+Next, we'll update the index view.
+
+```diff
+<!-- views/posts/index.cfm -->
+<cfoutput>
+    <h1>Posts</h1>
+    <cfif prc.posts.isEmpty()>
+        <div class="card mb-3">
+            <div class="card-body">
+                <p class="card-text">No posts yet.</p>
+            </div>
+        </div>
+    <cfelse>
+        <cfloop array="#prc.posts#" index="post">
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">#post.getTitle()#</h5>
+-                   <p class="card-text">#post.getBody()#</p>
++                   <p class="card-text">#post.getExcerpt()#</p>
+                    <a href="#event.buildLink( "posts.#post.getId()#" )#" class="card-link">Read</a>
+                </div>
+            </div>
+        </cfloop>
+    </cfif>
+</cfoutput>
+```
+
+Now we've used a custom function with a Quick entity.
+
+## Step 7
 Create route to create new posts.
 
 First step is to add a couple new routes to our `Posts` handler.
@@ -271,13 +341,13 @@ The POST route needs to be merged with the already defined GET request.
 Each route can only be defined once, so we need to define all the actions
 on one route.
 
-```cfc
+```diff
 // config/Router.cfc
 function configure() {
     // ...
-    get( "/posts/new", "Posts.new" );
-    get( "/posts/:postId", "Posts.show" );
-    route( "/posts" ).withHandler( "Posts" ).toAction( { "GET": "index", "POST": "create" } );
++   get( "/posts/new", "Posts.new" );
++   get( "/posts/:postId", "Posts.show" );
++   route( "/posts" ).withHandler( "Posts" ).toAction( { "GET": "index", "POST": "create" } );
     // ...
 }
 ```
@@ -287,11 +357,11 @@ by using ColdBox's `resources` conventions.
 
 Next we define the `new` action which should show a form to create a new Post.
 
-```cfc
+```diff
 // handlers/Posts.cfc
-function new( event, rc, prc ) secured {
-    event.setView( "posts/new" );
-}
++  function new( event, rc, prc ) secured {
++      event.setView( "posts/new" );
++  }
 ```
 
 (The `secured` annotation here ensure a user must be logged in to access the route.)
@@ -299,29 +369,29 @@ function new( event, rc, prc ) secured {
 ```cfm
 <!-- views/posts/new.cfm -->
 <cfoutput>
-	<h2>Create a new post</h2>
-	<form method="POST" action="#event.buildLink( "posts" )#">
-		<div class="form-group">
-			<label for="title">Title</label>
-			<input type="text" class="form-control" name="title" id="title">
-		</div>
-		<div class="form-group">
-			<label for="body">Body</label>
-			<textarea class="form-control" name="body" id="body" rows="3"></textarea>
-		</div>
-		<a href="#event.buildLink( "posts" )#" class="btn btn-outline">Back</a>
-		<button type="submit" class="btn btn-primary">Submit</button>
-	</form>
+    <h2>Create a new post</h2>
+    <form method="POST" action="#event.buildLink( "posts" )#">
+        <div class="form-group">
+            <label for="title">Title</label>
+            <input type="text" class="form-control" name="title" id="title">
+        </div>
+        <div class="form-group">
+            <label for="body">Body</label>
+            <textarea class="form-control" name="body" id="body" rows="3"></textarea>
+        </div>
+        <a href="#event.buildLink( "posts" )#" class="btn btn-outline">Back</a>
+        <button type="submit" class="btn btn-primary">Submit</button>
+    </form>
 </cfoutput>
 ```
 
 We'll add a link from the index page to the new page.
 
-```cfm
+```diff
 <!-- views/posts/index.cfm -->
 <cfoutput>
-	<h1>Posts</h1>
-	<a href="#event.buildLink( "posts.new" )#">Write a new post</a>
+    <h1>Posts</h1>
++   <a href="#event.buildLink( "posts.new" )#">Write a new post</a>
     <cfif prc.posts.isEmpty()>
         <div class="card mb-3">
             <div class="card-body">
@@ -333,7 +403,7 @@ We'll add a link from the index page to the new page.
             <div class="card mb-3">
                 <div class="card-body">
                     <h5 class="card-title">#post.getTitle()#</h5>
-                    <p class="card-text">#post.getBody()#</p>
+                    <p class="card-text">#post.getExcerpt()#</p>
                     <a href="#event.buildLink( "posts.#post.getId()#" )#" class="card-link">Read</a>
                 </div>
             </div>
@@ -344,21 +414,21 @@ We'll add a link from the index page to the new page.
 
 Lastly, we add the `create` action to handle creating the new Post.
 
-```cfc
-// handlers/Post.cfc
-function create( event, rc, prc ) secured {
-    getInstance( "Post" ).create( {
-        "title": rc.title,
-        "body": rc.body,
-        "userId": auth().user().getId()
-    } );
-    relocate( "posts" );
-}
+```diff
+// handlers/Posts.cfc
++  function create( event, rc, prc ) secured {
++      getInstance( "Post" ).create( {
++          "title": rc.title,
++          "body": rc.body,
++          "userId": auth().user().getId()
++      } );
++      relocate( "posts" );
++  }
 ```
 
 Normally this endpoint would need to handle validation as well.  We may come back to that in a later step.
 
-## Step 7
+## Step 8
 Refactor new post form to use blank Post.
 
 The next step is to add the edit and update actions.
@@ -370,32 +440,32 @@ our `new` action.
 
 First, let's edit the `new` action to pass a blank Post.
 
-```cfc
+```diff
 // handlers/Posts.cfc
 function new( event, rc, prc ) secured {
-    prc.post = getInstance( "Post" );
++   prc.post = getInstance( "Post" );
     event.setView( "posts/new" );
 }
 ```
 
 Next, we will use the Post as the `value` for our form elements.
 
-```cfm
+```diff
 <!-- views/posts/new.cfm -->
 <cfoutput>
-	<h2>Create a new post</h2>
-	<form method="POST" action="#event.buildLink( "posts" )#">
-		<div class="form-group">
-			<label for="title">Title</label>
-			<input type="text" class="form-control" name="title" id="title" value="#prc.post.getTitle()#">
-		</div>
-		<div class="form-group">
-			<label for="body">Body</label>
-			<textarea class="form-control" name="body" id="body" rows="3">#prc.post.getBody()#</textarea>
-		</div>
-		<a href="#event.buildLink( "posts" )#" class="btn btn-outline">Back</a>
-		<button type="submit" class="btn btn-primary">Submit</button>
-	</form>
+    <h2>Create a new post</h2>
+    <form method="POST" action="#event.buildLink( "posts" )#">
+        <div class="form-group">
+            <label for="title">Title</label>
++   		<input type="text" class="form-control" name="title" id="title" value="#prc.post.getTitle()#">
+        </div>
+        <div class="form-group">
+            <label for="body">Body</label>
++   		<textarea class="form-control" name="body" id="body" rows="3">#prc.post.getBody()#</textarea>
+        </div>
+        <a href="#event.buildLink( "posts" )#" class="btn btn-outline">Back</a>
+        <button type="submit" class="btn btn-primary">Submit</button>
+    </form>
 </cfoutput>
 ```
 
@@ -410,34 +480,46 @@ to help send the correct method. (Read why here: https://coldbox.ortusbooks.com/
 <!-- views/posts/_form.cfm -->
 <cfoutput>
     #html.startForm( method = args.method, action = args.action )#
-		<div class="form-group">
-			<label for="title">Title</label>
-			<input type="text" class="form-control" name="title" id="title" value="#prc.post.getTitle()#">
-		</div>
-		<div class="form-group">
-			<label for="body">Body</label>
-			<textarea class="form-control" name="body" id="body" rows="3">#prc.post.getBody()#</textarea>
-		</div>
-		<a href="#event.buildLink( "posts" )#" class="btn btn-outline">Back</a>
-		<button type="submit" class="btn btn-primary">Submit</button>
+        <div class="form-group">
+            <label for="title">Title</label>
+            <input type="text" class="form-control" name="title" id="title" value="#prc.post.getTitle()#">
+        </div>
+        <div class="form-group">
+            <label for="body">Body</label>
+            <textarea class="form-control" name="body" id="body" rows="3">#prc.post.getBody()#</textarea>
+        </div>
+        <a href="#event.buildLink( "posts" )#" class="btn btn-outline">Back</a>
+        <button type="submit" class="btn btn-primary">Submit</button>
     #html.endForm()#
 </cfoutput>
 ```
 
-```cfm
+```diff
 <!-- views/posts/new.cfm -->
 <cfoutput>
-	<h2>Create a new post</h2>
-    #renderView( "posts/_form", {
-		"method": "POST",
-		"action": event.buildLink( "posts" )
-	} )#
+    <h2>Create a new post</h2>
++   #renderView( "posts/_form", {
++   	"method": "POST",
++       "action": event.buildLink( "posts" )
++   } )#
+-   <form method="POST" action="#event.buildLink( "posts" )#">
+-	    <div class="form-group">
+-		    <label for="title">Title</label>
+-   		<input type="text" class="form-control" name="title" id="title" value="#prc.post.getTitle()#">
+-	    </div>
+-	    <div class="form-group">
+-		    <label for="body">Body</label>
+-   		<textarea class="form-control" name="body" id="body" rows="3">#prc.post.getBody()#</textarea>
+-	    </div>
+-	    <a href="#event.buildLink( "posts" )#" class="btn btn-outline">Back</a>
+-	    <button type="submit" class="btn btn-primary">Submit</button>
+-   </form>
 </cfoutput>
 ```
 
 With our refactor done, we are now ready to move on to the edit and update actions.
 
-## Step 8
+## Step 9
 Add edit and update actions for Posts.
 
 Let's start with the Router.  We mentioned previously that we would clean up the routes file
@@ -445,29 +527,33 @@ using ColdBox's `resources` convention.  The `resources` convention creates seve
 routes for common CREATE, READ, UPDATE, and DELETE (CRUD) actions.
 We can replace all our custom routes with this one call:
 
-```cfc
+```diff
 // config/Router.cfc
 function configure() {
     // ...
-    resources( resource = "posts", parameterName = "postId" );
++   resources( resource = "posts", parameterName = "postId" );
+-   get( "/posts/new", "Posts.new" );
+-   get( "/posts/:postId", "Posts.show" );
+-   route( "/posts" ).withHandler( "Posts" ).toAction( { "GET": "index", "POST": "create" } );
+
     // ...
 }
 
 This creates the routes we previously had for posts as well as the routes we will need
 for `edit`, `update`, and `delete`.  Now it's time to create the new `edit` action and view.
 
-```cfc
+```diff
 // handlers/Posts.cfc
-function edit( event, rc, prc ) secured {
-    prc.post = getInstance( "Post" ).findOrFail( rc.postId );
-    event.setView( "posts/edit" );
-}
++  function edit( event, rc, prc ) secured {
++      prc.post = getInstance( "Post" ).findOrFail( rc.postId );
++      event.setView( "posts/edit" );
++  }
 ```
 
 ```cfm
 <!-- views/posts/edit.cfm -->
 <cfoutput>
-	<h2>Edit Post ###prc.post.getId()#</h2>
+    <h2>Edit Post ###prc.post.getId()#</h2>
     #renderView( "posts/_form", {
         "method": "PUT",
         "action": event.buildLink( "posts.#prc.post.getId()#" )
@@ -479,29 +565,11 @@ Now we see our refactoring helping us out!
 
 We need a way to get to the edit page.  Let's add a link from our index page.
 
-```cfm
+```diff
 <!-- views/posts/index.cfm -->
 <cfoutput>
-	<h1>Posts</h1>
-	<a href="#event.buildLink( "posts.new" )#">Write a new post</a>
-	<cfloop array="#prc.posts#" index="post">
-		<div class="card mb-3">
-			<div class="card-body">
-				<h5 class="card-title">#post.getTitle()#</h5>
-				<p class="card-text">#post.getBody()#</p>
-				<a href="#event.buildLink( "posts.#post.getId()#" )#" class="card-link">Read</a>
-				<a href="#event.buildLink( "posts.#post.getId()#.edit")#" class="card-link">Edit</a>
-			</div>
-		</div>
-	</cfloop>
-</cfoutput>
-```
-
-```cfm
-<!-- views/posts/index.cfm -->
-<cfoutput>
-	<h1>Posts</h1>
-	<a href="#event.buildLink( "posts.new" )#">Write a new post</a>
+    <h1>Posts</h1>
+    <a href="#event.buildLink( "posts.new" )#">Write a new post</a>
     <cfif prc.posts.isEmpty()>
         <div class="card mb-3">
             <div class="card-body">
@@ -513,9 +581,9 @@ We need a way to get to the edit page.  Let's add a link from our index page.
             <div class="card mb-3">
                 <div class="card-body">
                     <h5 class="card-title">#post.getTitle()#</h5>
-                    <p class="card-text">#post.getBody()#</p>
+                    <p class="card-text">#post.getExcerpt()#</p>
                     <a href="#event.buildLink( "posts.#post.getId()#" )#" class="card-link">Read</a>
-                    <a href="#event.buildLink( "posts.#post.getId()#.edit")#" class="card-link">Edit</a>
++                   <a href="#event.buildLink( "posts.#post.getId()#.edit")#" class="card-link">Edit</a>
                 </div>
             </div>
         </cfloop>
@@ -529,34 +597,36 @@ here to make the edit route on show up for the User that wrote it.
 Lastly, we need to add an `update` action to handle persisting the changes to our database.
 After saving, we will redirect to the `show` action for the edited Post.
 
-```cfc
-function update( event, rc, prc ) secured {
-    var post = getInstance( "Post" ).findOrFail( rc.postId );
-    post.update( {
-        "title": rc.title,
-        "body": rc.body
-    } );
-    relocate( "posts.#post.getId()#" );
-}
+```diff
+// handlers/Posts.cfc
++  function update( event, rc, prc ) secured {
++      var post = getInstance( "Post" ).findOrFail( rc.postId );
++      post.update( {
++          "title": rc.title,
++          "body": rc.body
++      } );
++      relocate( "posts.#post.getId()#" );
++  }
 ```
 
 Again, you would want validation on this endpoint before saving to the database, but this does the trick for now!
 
-## Step 9
+## Step 10
 Allow deleting of Posts.
 
 Let's round out the CRUD actions on posts by adding a delete button to the edit page.
 We implement the delete action as a form so we can use the `DELETE` verb.
 
-```cfm
+```diff
 <!-- views/posts/edit.cfm -->
 <cfoutput>
-	<div class="d-flex">
-		<h2 class="mr-3">Edit Post ###prc.post.getId()#</h2>
-	    #html.startForm( method = "DELETE", action = event.buildLink( "posts.#prc.post.getId()#" ) )#
-	        <button type="submit" class="btn btn-outline-danger">Delete</button>
-	    #html.endForm()#
-	</div>
+-   <h2>Edit Post ###prc.post.getId()#</h2>
++	<div class="d-flex">
++		<h2 class="mr-3">Edit Post ###prc.post.getId()#</h2>
++	    #html.startForm( method = "DELETE", action = event.buildLink( "posts.#prc.post.getId()#" ) )#
++	        <button type="submit" class="btn btn-outline-danger">Delete</button>
++	    #html.endForm()#
++	</div>
     #renderView( "posts/_form", {
         "method": "PUT",
         "action": event.buildLink( "posts.#prc.post.getId()#" )
@@ -566,17 +636,18 @@ We implement the delete action as a form so we can use the `DELETE` verb.
 
 Additionally, we add the action to the `Posts` handler.
 
-```cfc
-function delete( event, rc, prc ) {
-    var post = getInstance( "Post" ).findOrFail( rc.postId );
-    post.delete();
-    relocate( "posts" );
-}
+```diff
+// handlers/Posts.cfc
++  function delete( event, rc, prc ) {
++      var post = getInstance( "Post" ).findOrFail( rc.postId );
++      post.delete();
++      relocate( "posts" );
++  }
 ```
 
 That rounds out the CRUD actions!
 
-## Step 10
+## Step 11
 Add in User information for each Post.
 
 Let's take the next step and add a relationship from a Post to its author - a User.
@@ -584,8 +655,8 @@ This is done by adding a method to the Post entity.  We can name the method anyt
 we want - whatever makes sense for the domain.  In this case, we are choosing to use
 `author` to represent the relationship between a Post and the User who wrote it.
 
-```cfc
-// models/Post.cfc
+```diff
+// models/entities/Post.cfc
 component extends="quick.models.BaseEntity" accessors="true" {
 
     property name="id";
@@ -595,9 +666,13 @@ component extends="quick.models.BaseEntity" accessors="true" {
     property name="createdDate";
     property name="modifiedDate";
 
-    function author() {
-        return belongsTo( "User" );
+    function getExcerpt() {
+        return variables._str.limitWords( this.getBody(), 30 );
     }
+
++   function author() {
++       return belongsTo( "User" );
++   }
 
 }
 ```
@@ -608,25 +683,25 @@ We can access the User instance associated with a Post by prefixing the relation
 method name with `get` - `getAuthor` in this case.  Let's start by adding the
 author's email to the `Posts.show` page.
 
-```cfm
+```diff
 <!-- views/posts/show.cfm -->
 <cfoutput>
-	<article>
-		<h2>#prc.post.getTitle()#</h2>
-        <small>By #prc.post.getAuthor().getEmail()#</small>
-		<p>#prc.post.getBody()#</p>
-	</article>
-	<a href="#event.buildLink( "posts" )#">Back</a>
+    <article>
+        <h2>#prc.post.getTitle()#</h2>
++       <small>By #prc.post.getAuthor().getEmail()#</small>
+        <p>#prc.post.getBody()#</p>
+    </article>
+    <a href="#event.buildLink( "posts" )#">Back</a>
 </cfoutput>
 ```
 
 Great!  Let's add it to our `Posts.index` view as well.
 
-```cfm
+```diff
 <!-- views/posts/index.cfm -->
 <cfoutput>
-	<h1>Posts</h1>
-	<a href="#event.buildLink( "posts.new" )#">Write a new post</a>
+    <h1>Posts</h1>
+    <a href="#event.buildLink( "posts.new" )#">Write a new post</a>
     <cfif prc.posts.isEmpty()>
         <div class="card mb-3">
             <div class="card-body">
@@ -638,8 +713,8 @@ Great!  Let's add it to our `Posts.index` view as well.
             <div class="card mb-3">
                 <div class="card-body">
                     <h5 class="card-title">#post.getTitle()#</h5>
-                    <h6 class="card-subtitle mb-2 text-muted">By #post.getAuthor().getEmail()#</h6>
-                    <p class="card-text">#post.getBody()#</p>
++                   <h6 class="card-subtitle mb-2 text-muted">By #post.getAuthor().getEmail()#</h6>
+                    <p class="card-text">#post.getExcerpt()#</p>
                     <a href="#event.buildLink( "posts.#post.getId()#" )#" class="card-link">Read</a>
                     <a href="#event.buildLink( "posts.#post.getId()#.edit")#" class="card-link">Edit</a>
                 </div>
@@ -649,7 +724,7 @@ Great!  Let's add it to our `Posts.index` view as well.
 </cfoutput>
 ```
 
-## Step 11
+## Step 12
 Fix the eager loading problem of Post -> Author
 
 We now run in to an interesting issue.  To see it better, let's do two things.
@@ -678,39 +753,83 @@ To use eager loading, you use the `with` method when executing your query.
 `with` takes a single relationship method name or an array of relationship
 method names.  Here's is our adjusted `Posts.index` action:
 
-```
+```diff
 function index( event, rc, prc ) {
-    prc.posts = getInstance( "Post" ).with( "author" ).all();
+-   prc.posts = getInstance( "Post" ).all();
++   prc.posts = getInstance( "Post" ).with( "author" ).all();
     event.setView( "Posts/index" );
 }
 ```
 
 When you reload the page, you will notice that our queries is back down to two!  Well done!
 
-## Step 12
+## Step 13
+Only show edit route for the user that wrote it.
+
+We mentioned above that when we defined the relationship between a Post
+and its author we would revisit the edit link on the index page.  We
+only want that link appearing if the currently logged in user (if there
+is one) is the author of that Post.
+
+```diff
+<!-- views/posts/index.cfm -->
+<cfoutput>
+    <h1>Posts</h1>
+    <a href="#event.buildLink( "posts.new" )#">Write a new post</a>
+    <cfif prc.posts.isEmpty()>
+        <div class="card mb-3">
+            <div class="card-body">
+                <p class="card-text">No posts yet.</p>
+            </div>
+        </div>
+    <cfelse>
+        <cfloop array="#prc.posts#" index="post">
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">#post.getTitle()#</h5>
+                    <h6 class="card-subtitle mb-2 text-muted">By #post.getAuthor().getEmail()#</h6>
+                    <p class="card-text">#post.getExcerpt()#</p>
+                    <a href="#event.buildLink( "posts.#post.getId()#" )#" class="card-link">Read</a>
++                   <cfif auth().check() && auth().user().is( post.getAuthor() )>
+                       <a href="#event.buildLink( "posts.#post.getId()#.edit")#" class="card-link">Edit</a>
++                   </cfif>
+                </div>
+            </div>
+        </cfloop>
+    </cfif>
+</cfoutput>
+```
+
+Great!  Now we will only see the edit link if the Post was written by the
+logged in User.
+
+(Of course, right now you could still manually go to the edit page.
+cbguard can help with this, but that's for a different tutorial.)
+
+## Step 14
 Allow commenting on posts
 
 This step adds a new form at the bottom of the `Posts.show` page to add a comment.
 
-```cfm
+```diff
 <!-- views/posts/show.cfm -->
 <cfoutput>
-	<article>
-		<h2>#prc.post.getTitle()#</h2>
+    <article>
+        <h2>#prc.post.getTitle()#</h2>
         <small>By #prc.post.getAuthor().getEmail()#</small>
-		<p>#prc.post.getBody()#</p>
-	</article>
-	<a href="#event.buildLink( "posts" )#">Back</a>
-    <hr />
-	#html.startForm( method = "POST", action = event.buildLink( "posts.#prc.post.getId()#.comments" ) )#
-		<div class="form-group">
-			<label for="body">Add a comment</label>
-			<textarea class="form-control" name="body" id="body" rows="3"></textarea>
-		</div>
-		<div class="form-group">
-			<button type="submit" class="btn btn-primary">Comment</button>
-		</div>
-	#html.endForm()#
+        <p>#prc.post.getBody()#</p>
+    </article>
+    <a href="#event.buildLink( "posts" )#">Back</a>
++   <hr />
++   #html.startForm( method = "POST", action = event.buildLink( "posts.#prc.post.getId()#.comments" ) )#
++ 	    <div class="form-group">
++ 		    <label for="body">Add a comment</label>
++ 		    <textarea class="form-control" name="body" id="body" rows="3"></textarea>
++ 	    </div>
++ 	    <div class="form-group">
++ 		    <button type="submit" class="btn btn-primary">Comment</button>
++ 	    </div>
++   #html.endForm()#
 </cfoutput>
 ```
 
@@ -726,24 +845,24 @@ box coldbox create handler name=PostComments actions=create --!integrationTests
 // handlers/PostComments.cfc
 component secured {
 
-	function create( event, rc, prc ) {
+    function create( event, rc, prc ) {
         getInstance( "Comment" ).create( {
             "postId": rc.postId,
             "body": rc.body
         } );
         relocate( "posts.#rc.postId#" );
-	}
+    }
 
 }
 ```
 
 We also need to route to this new action.  This route needs to go above the other post routes.
 
-```cfc
+```diff
 // config/Router.cfc
 function configure() {
     // ...
-    post( "/posts/:postId/comments", "PostComments.create" );
++   post( "/posts/:postId/comments", "PostComments.create" );
     // ... the other Post routes
 }
 ```
@@ -751,7 +870,7 @@ function configure() {
 Finally we need a new Comment entity.
 
 ```
-// models/Comment.cfc
+// models/entities/Comment.cfc
 component extends="quick.models.BaseEntity" accessors="true" {
 
     property name="id";
@@ -794,16 +913,17 @@ component {
 }
 ```
 
-And now our new form works.  But we can't see it on the page yet!  We'll cover that next.
+And now our new form works.  But we can't see existing comments on the page yet!
+We'll cover that next.
 
-## Step 13
+## Step 15
 Display comments on the `Posts.show` page
 
-Now that we have comments associated with a Post, let's show those comments on the `Posts.show` view.
-We start by defining a relationship on Posts.
+Now that we have comments associated with a Post, let's show those
+comments on the `Posts.show` view.  We start by defining a relationship on Posts.
 
-```cfc
-// models/Post.cfc
+```diff
+// models/entities/Post.cfc
 component extends="quick.models.BaseEntity" accessors="true" {
 
     property name="id";
@@ -813,13 +933,17 @@ component extends="quick.models.BaseEntity" accessors="true" {
     property name="createdDate";
     property name="modifiedDate";
 
+    function getExcerpt() {
+        return variables._str.limitWords( this.getBody(), 30 );
+    }
+
     function author() {
         return belongsTo( "User" );
     }
 
-    function comments() {
-        return hasMany( "Comment" );
-    }
++   function comments() {
++       return hasMany( "Comment" );
++   }
 
 }
 ```
@@ -829,34 +953,448 @@ component extends="quick.models.BaseEntity" accessors="true" {
 We can now access the relationship and execute it by calling the relationship name
 prefixed by `get` - `getComments()`.  We'll add a `<cfloop>` to the view to show the comments.
 
-```cfm
+```diff
 <!-- views/posts/show.cfm -->
 <cfoutput>
-	<article>
-		<h2>#prc.post.getTitle()#</h2>
+    <article>
+        <h2>#prc.post.getTitle()#</h2>
         <small>By #prc.post.getAuthor().getEmail()#</small>
-		<p>#prc.post.getBody()#</p>
-	</article>
-	<a href="#event.buildLink( "posts" )#">Back</a>
+        <p>#prc.post.getBody()#</p>
+    </article>
+    <a href="#event.buildLink( "posts" )#">Back</a>
++   <hr />
++   <h3>Comments</h3>
++   <cfloop array="#prc.post.getComments()#" index="comment">
++       <div class="card card-body bg-light mb-2">
++           <small>#dateTimeFormat( comment.getCreatedDate(), "full" )#</small>
++           <p>#comment.getBody()#</p>
++       </div>
++   </cfloop>
+    <hr />
+    #html.startForm( method = "POST", action = event.buildLink( "posts.#prc.post.getId()#.comments" ) )#
+        <div class="form-group">
+            <label for="body">Add a comment</label>
+            <textarea class="form-control" name="body" id="body" rows="3"></textarea>
+        </div>
+        <div class="form-group">
+            <button type="submit" class="btn btn-primary">Comment</button>
+        </div>
+    #html.endForm()#
+</cfoutput>
+```
+
+There we go!  Comments are now shown on each posts.
+(Note that we also include an empty state. Good UI practice.)
+
+## Step 16
+Refactor create methods to use relationships.
+
+Let's try something.  Using Postman or another tool like it send a POST request to
+`/posts/:postId/comments` using a `postId` that does not exist.  If you have a
+foreign key constraint on the `postId` column on the `comments` table, you should get
+an error back.  This isn't the nicest behavior - we'd rather have a 404 returned
+since the post does not exist.
+
+Additionally, what if the column name changes from `postId` to something else?
+What if additional constraints need to be applied to this relationship like checking
+that a Post is published before allowing comments?  The power of Quick comes in
+naming bits of SQL in concepts like relationships and scopes.  Let's use that to our advantage here.
+
+First, let's create a relationship from User to Post.  Even though we aren't displaying
+this in the UI right now, it can be useful to us.
+
+```diff
+// models/entities/User.cfc
+component extends="quick.models.BaseEntity" {
+
+    property name="bcrypt" inject="@BCrypt" persistent="false";
+
+    property name="id";
+    property name="email";
+    property name="password";
+
++   function posts() {
++       return hasMany( "Post" );
++   }
+
+    public User function setPassword( required string password ){
+        return assignAttribute( "password", bcrypt.hashPassword( arguments.password ) );
+    }
+
+    public boolean function hasPermission( required string permission ){
+        return true;
+    }
+
+    public boolean function isValidCredentials( required string email, required string password ){
+        var user = newEntity().where( "email", arguments.email ).first();
+        if ( !user.isLoaded() ) {
+            return false;
+        }
+        return bcrypt.checkPassword( arguments.password, user.getPassword() );
+    }
+
+    public User function retrieveUserByUsername( required string email ){
+        return newEntity().where( "email", arguments.email ).firstOrFail();
+    }
+
+    public User function retrieveUserById( required numeric id ){
+        return newEntity().findOrFail( arguments.id );
+    }
+
+    public struct function getMemento(){
+        return { "email" : variables.getEmail() };
+    }
+
+}
+```
+
+Next we swap the `Posts.create` action to use the relationship when creating the Post.
+
+```diff
+// handlers/Posts.cfc
+function create( event, rc, prc ) secured {
+-   getInstance( "Post" ).create( {
++   auth().user().posts().create( {
+        "title": rc.title,
+        "body": rc.body,
+-       "userId": auth().user().getId()
+    } );
+    relocate( "posts" );
+}
+```
+
+On first glance it doesn't seem very different at all.  But remember that
+now the definition for how these models are related is stored in one place,
+no matter how many different places use that relationship.
+
+Let's apply the same treatment to our `PostComments.create` method.
+
+```diff
+// handlers/PostComments.cfc
+function create( event, rc, prc ) {
++   var post = getInstance( "Post" ).findOrFail( rc.postId );
++   post.comments().create( {
+-   getInstance( "Comment" ).create( {
+-       "postId": rc.postId,
+        "body": rc.body
+    } );
+    relocate( "posts.#rc.postId#" );
+}
+```
+
+This accomplishes the other goal we had in mind - this route will return
+a 404 Not Found if an invalid `postId` is passed.
+
+## Step 17
+Introduce Tags.
+
+A Tag showcases a new relationship type - a many-to-many or `belongsToMany`
+relationship.  This is where a Post can be associated with 0 or more tags
+and a Tag can be associated with 0 or more Posts.
+
+(For this example, we will create the Tags in the database manually.)
+
+Let's begin with a migration file.  Two migrations, actually.  That is
+because to represent a many-to-many relationship you need an
+intermediate or pivot table.  By default, Quick uses the entity names
+in alphabetical order separated by an underscore.  So for the table
+between our Post entity and our Tag entity, Quick will use a default
+of `post_tag`.  You are, of course, free to use your own conventions.
+
+```sh
+box migrate create create_tags_table
+```
+
+```cfc
+component {
+
+    function up( schema, query ) {
+        schema.create( "tags", function( table ) {
+            table.increments( "id" );
+            table.string( "name" );
+        } );
+    }
+
+    function down( schema, query ) {
+        schema.drop( "tags" );
+    }
+
+}
+```
+
+```sh
+box migrate create create_post_tag_table
+```
+
+```cfc
+component {
+
+    function up( schema, query ) {
+        schema.create( "post_tag", function( table ) {
+            table.unsignedInteger( "postId" )
+                .references( "id" )
+                .onTable( "posts" )
+                .onDelete( "CASCADE" );
+            table.unsignedInteger( "tagId" )
+                .references( "id" )
+                .onTable( "tags" )
+                .onDelete( "CASCADE" );
+
+            table.primaryKey( [ "postId", "tagId" ] );
+        } );
+    }
+
+    function down( schema, query ) {
+        schema.drop( "post_tag" );
+    }
+
+}
+```
+
+```sh
+box migrate up
+```
+
+Let's create our Tag entity next.
+
+```cfc
+/models/entities/Tag.cfc
+component extends="quick.models.BaseEntity" accessors="true" {
+
+    property name="id";
+    property name="name";
+
+    function posts() {
+        return belongsToMany( "Post" );
+    }
+
+}
+```
+
+(Since we are following Quick conventions, we don't have to specify the foreign and local keys.)
+
+After that, let's add the tags relationship to our Post entity.
+
+```diff
+// models/entities/Post.cfc
+component extends="quick.models.BaseEntity" accessors="true" {
+
+    property name="id";
+    property name="title";
+    property name="body";
+    property name="userId";
+    property name="createdDate";
+    property name="modifiedDate";
+
+    function getExcerpt() {
+        return variables._str.limitWords( this.getBody(), 30 );
+    }
+
+    function author() {
+        return belongsTo( "User" );
+    }
+
+    function comments() {
+        return hasMany( "Comment" );
+    }
+
++   function tags() {
++       return belongsToMany( "Tag" );
++   }
++
++   function hasTag( tag ) {
++       return this.getTags().map( function( tag ) {
++           return tag.getId();
++       } ).contains( arguments.tag.getId() );
++   }
++
+}
+```
+
+(Since we are following Quick conventions, we don't have to specify the foreign and local keys.)
+We also added a helper function - `hasTag` - in our view to select the already selected tags.
+
+Next, create some tags manually through a database UI.  Four or five should be enough.
+
+Let's show the available tags on our `Posts.new` and `Posts.edit` form.
+The first step is to add all the tags to our `prc` in those actions.
+
+```diff
+// handlers/Posts.cfc
+function new( event, rc, prc ) secured {
+    prc.post = getInstance( "Post" );
++   prc.tags = getInstance( "Tag" ).all();
+    event.setView( "posts/new" );
+}
+
+function edit( event, rc, prc ) secured {
+    prc.post = getInstance( "Post" ).findOrFail( rc.postId );
++   prc.tags = getInstance( "Tag" ).all();
+    event.setView( "posts/edit" );
+}
+```
+
+Next we'll display the tags in a select field on the form.
+
+```diff
+<!-- views/posts/_form.cfm -->
+<cfoutput>
+    #html.startForm( method = args.method, action = args.action )#
+        <div class="form-group">
+            <label for="title">Title</label>
+            <input type="text" class="form-control" name="title" id="title" value="#prc.post.getTitle()#">
+        </div>
+        <div class="form-group">
+            <label for="body">Body</label>
+            <textarea class="form-control" name="body" id="body" rows="3">#prc.post.getBody()#</textarea>
+        </div>
++       <div class="form-group">
++           <label for="tags">Tags</label>
++           <select class="form-control" name="tags[]" multiple="true" id="tags">
++               <cfloop array="#prc.tags#" index="tag">
++                   <option
++                       value="#tag.getId()#
++                       <cfif prc.post.hasTag( tag )>selected</cfif>
++                   >
++                       #tag.getName()#
++                   </option>
++               </cfloop>
++           </select>
++       </div>
+        <a href="#event.buildLink( "posts" )#" class="btn btn-outline">Back</a>
+        <button type="submit" class="btn btn-primary">Submit</button>
+    #html.endForm()#
+</cfoutput>
+```
+
+Last, our `create` and `update` actions need to process the tags.  To do this we'll use two
+methods available on the `BelongsToMany` relationships - `attach` and `sync`.
+
+Let's start with the `create` action:
+
+```diff
+// handlers/Posts.cfc
+function create( event, rc, prc ) secured {
++   var post = auth().user().posts().create( {
+        "title": rc.title,
+        "body": rc.body,
+    } );
++   post.tags().attach( rc.tags );
+    relocate( "posts" );
+}
+```
+
+Here we use the `attach` method.  It takes an array of ids or Tag entities to
+associate with the Post.  These will be added to any already existing associations.
+This is done after creating the Post because the Post needs to exist before we
+can insert its `id` in the `post_tag` table.
+
+Next, let's modify the `update` action:
+
+```diff
+// handlers/Posts.cfc
+function update( event, rc, prc ) secured {
+    var post = getInstance( "Post" ).findOrFail( rc.postId );
+    post.update( {
+        "title": rc.title,
+        "body": rc.body
+    } );
++   post.tags().sync( rc.tags );
+    relocate( "posts.#post.getId()#" );
+}
+```
+
+Here we use the `sync` method.  This method first deletes any existing Tag associations
+for the given Post.  Then it creates the associations passed in.
+
+(There is one more method not covered here - `detach`.  It is used to remove one or more associations.)
+
+Last step - let's add the list of tags to the `Posts.show` and `Posts.index` action so we can verify our work.
+
+```diff
+<!-- views/posts/show.cfm -->
+<cfoutput>
+    <article>
+        <h2>#prc.post.getTitle()#</h2>
+        <small>By #prc.post.getAuthor().getEmail()#</small>
++       <div class="mb-4">
++           <cfloop array="#prc.post.getTags()# index="tag">
++               <span class="badge badge-pill badge-info">#tag.getName()#</span>
++           </cfloop>
++       </div>
+        <p>#prc.post.getBody()#</p>
+    </article>
+    <a href="#event.buildLink( "posts" )#">Back</a>
     <hr />
     <h3>Comments</h3>
     <cfloop array="#prc.post.getComments()#" index="comment">
-		<div class="card card-body bg-light mb-2">
-			<small>#dateTimeFormat( comment.getCreatedDate(), "full" )#</small>
+        <div class="card card-body bg-light mb-2">
+            <small>#dateTimeFormat( comment.getCreatedDate(), "full" )#</small>
             <p>#comment.getBody()#</p>
         </div>
     </cfloop>
     <hr />
-	#html.startForm( method = "POST", action = event.buildLink( "posts.#prc.post.getId()#.comments" ) )#
-		<div class="form-group">
-			<label for="body">Add a comment</label>
-			<textarea class="form-control" name="body" id="body" rows="3"></textarea>
-		</div>
-		<div class="form-group">
-			<button type="submit" class="btn btn-primary">Comment</button>
-		</div>
-	#html.endForm()#
+    #html.startForm( method = "POST", action = event.buildLink( "posts.#prc.post.getId()#.comments" ) )#
+        <div class="form-group">
+            <label for="body">Add a comment</label>
+            <textarea class="form-control" name="body" id="body" rows="3"></textarea>
+        </div>
+        <div class="form-group">
+            <button type="submit" class="btn btn-primary">Comment</button>
+        </div>
+    #html.endForm()#
 </cfoutput>
 ```
 
-There we go!  Comments are now shown on each posts.  (Note that we also include an empty state.)
+```diff
+<!-- views/posts/index.cfm -->
+<cfoutput>
+    <h1>Posts</h1>
+    <a href="#event.buildLink( "posts.new" )#">Write a new post</a>
+    <cfif prc.posts.isEmpty()>
+        <div class="card mb-3">
+            <div class="card-body">
+                <p class="card-text">No posts yet.</p>
+            </div>
+        </div>
+    <cfelse>
+        <cfloop array="#prc.posts#" index="post">
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">#post.getTitle()#</h5>
+                    <h6 class="card-subtitle mb-2 text-muted">By #post.getAuthor().getEmail()#</h6>
++                   <div class="mb-2">
++                       <cfloop array="#post.getTags()# index="tag">
++                           <span class="badge badge-pill badge-info">#tag.getName()#</span>
++                       </cfloop>
++                   </div>
+                    <p class="card-text">#post.getExcerpt()#</p>
+                    <a href="#event.buildLink( "posts.#post.getId()#" )#" class="card-link">Read</a>
+                    <cfif auth().check() && auth().user().is( post.getAuthor() )>
+                       <a href="#event.buildLink( "posts.#post.getId()#.edit")#" class="card-link">Edit</a>
+                    </cfif>
+                </div>
+            </div>
+        </cfloop>
+    </cfif>
+</cfoutput>
+```
+
+Step back and check out your work!
+
+## Step 18
+Eager load tags on `Posts.index`.
+
+Check out your `Posts.index` action now.  If many of your Posts have tags,
+you are going to see a lot of queries again.  The N+1 problem is back.
+Let's reach for eager loading and the `with` method again.
+
+```diff
+function index( event, rc, prc ) {
+-   prc.posts = getInstance( "Post" ).with( "author" ).all();
++   prc.posts = getInstance( "Post" ).with( [ "author", "tags" ] ).all();
+    event.setView( "Posts/index" );
+}
+```
+
+That's it!  N+1 problem solved.
