@@ -739,7 +739,7 @@ author's email to the `Posts.show` page.
 <cfoutput>
     <article>
         <h2>#prc.post.getTitle()#</h2>
-+       <small>By #prc.post.getAuthor().getEmail()#</small>
++       <small class="mb-4">By #prc.post.getAuthor().getEmail()#</small>
         <p>#prc.post.getBody()#</p>
     </article>
     <a href="#event.buildLink( "posts" )#">Back</a>
@@ -867,7 +867,7 @@ This step adds a new form at the bottom of the `Posts.show` page to add a commen
 <cfoutput>
     <article>
         <h2>#prc.post.getTitle()#</h2>
-        <small>By #prc.post.getAuthor().getEmail()#</small>
+        <small class="mb-4">By #prc.post.getAuthor().getEmail()#</small>
         <p>#prc.post.getBody()#</p>
     </article>
     <a href="#event.buildLink( "posts" )#">Back</a>
@@ -1023,7 +1023,7 @@ prefixed by `get` - `getComments()`.  We'll add a `<cfloop>` to the view to show
 <cfoutput>
     <article>
         <h2>#prc.post.getTitle()#</h2>
-        <small>By #prc.post.getAuthor().getEmail()#</small>
+        <small class="mb-4">By #prc.post.getAuthor().getEmail()#</small>
         <p>#prc.post.getBody()#</p>
     </article>
     <a href="#event.buildLink( "posts" )#">Back</a>
@@ -1388,7 +1388,8 @@ Last step - let's add the list of tags to the `Posts.show` and `Posts.index` act
 <cfoutput>
     <article>
         <h2>#prc.post.getTitle()#</h2>
-        <small>By #prc.post.getAuthor().getEmail()#</small>
+-       <small class="mb-4">By #prc.post.getAuthor().getEmail()#</small>
++       <small>By #prc.post.getAuthor().getEmail()#</small>
 +       <div class="mb-4">
 +           <cfloop array="#prc.post.getTags()# index="tag">
 +               <span class="badge badge-pill badge-info">#tag.getName()#</span>
