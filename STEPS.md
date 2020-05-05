@@ -1659,3 +1659,8 @@ Maybe you introduce the idea of promoted posts later and those need to be
 first no matter what. You can make the change in your scope and any query
 using that scope gets the new behavior automatically.  Scopes and relationships
 really are the power behind Quick.
+
+## Wrap up
+
+We hope you've enjoyed this Build a Blog in 30 Minutes with ColdBox and Quick exercise.
+To learn more about Quick, check out the [Quick documentation.](https://quick.ortusbooks.com/)s
