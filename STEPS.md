@@ -148,7 +148,7 @@ attributes we want to select from the database table.
 
 ```cfc
 // models/Post.cfc
-component extends="quick.models.BaseEntity" {
+component extends="quick.models.BaseEntity" accessors="true" {
 
     property name="id";
     property name="title";
@@ -484,3 +484,108 @@ function delete( event, rc, prc ) {
 ```
 
 That rounds out the CRUD actions!
+
+## Step 10
+Allow commenting on posts
+
+This step adds a new form at the bottom of the `Posts.show` page to add a comment.
+
+```cfm
+<!-- views/posts/show.cfm -->
+<cfoutput>
+	<article>
+		<h2>#prc.post.getTitle()#</h2>
+		<p>#prc.post.getBody()#</p>
+	</article>
+	<a href="#event.buildLink( "posts" )#">Back</a>
+    <hr />
+	#html.startForm( method = "POST", action = event.buildLink( "posts.#prc.post.getId()#.comments" ) )#
+		<div class="form-group">
+			<label for="body">Add a comment</label>
+			<textarea class="form-control" name="body" id="body" rows="3"></textarea>
+		</div>
+		<div class="form-group">
+			<button type="submit" class="btn btn-primary">Comment</button>
+		</div>
+	#html.endForm()#
+</cfoutput>
+```
+
+We will use a nested route for adding the comment here.  It could be added using
+a top-level comments handler and passing a `postId` along with the comment body.
+Both work and are valid.  Let's generate our `PostComments.cfc` handler with CommandBox.
+
+```sh
+box coldbox create handler name=PostComments actions=create --!integrationTests
+```
+
+```cfc
+// handlers/PostComments.cfc
+component {
+
+	function create( event, rc, prc ) {
+        getInstance( "Comment" ).create( {
+            "postId": rc.postId,
+            "body": rc.body
+        } );
+        relocate( "posts.#rc.postId#" );
+	}
+
+}
+```
+
+We also need to route to this new action.  This route needs to go above the other post routes.
+
+```cfc
+// config/Router.cfc
+function configure() {
+    // ...
+    post( "/posts/:postId/comments", "PostComments.create" );
+    // ... the other post routes
+}
+```
+
+Finally we need a new Comment entity.
+
+```
+// models/Comment.cfc
+component extends="quick.models.BaseEntity" accessors="true" {
+
+    property name="id";
+    property name="body";
+    property name="postId";
+    property name="createdDate";
+    property name="modifiedDate";
+
+}
+```
+
+Now we will add a migration for comments using CommandBox.
+
+```sh
+box migrate create create_comments_table
+```
+
+Fill in the newly created migration file with the code to create the `posts` table.
+
+```cfc
+component {
+
+    function up( schema, query ) {
+        schema.create( "comments", function( table ) {
+            table.increments( "id" );
+            table.text( "body" );
+            table.unsignedInteger( "postId" );
+            table.timestamp( "createdDate" );
+            table.timestamp( "modifiedDate" );
+        } );
+    }
+
+    function down( schema, query ) {
+        schema.drop( "comments" );
+    }
+
+}
+```
+
+And now our new form works.  But we can't see it on the page yet!  We'll cover that next.

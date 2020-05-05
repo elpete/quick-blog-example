@@ -27,6 +27,7 @@ component{
 			};
 		} );
 
+		post( "/posts/:postId/comments", "PostComments.create" );
 		resources( resource = "posts", parameterName = "postId" );
 
 		// Conventions based routing
