@@ -6,4 +6,8 @@ component extends="quick.models.BaseEntity" {
     property name="createdDate";
     property name="modifiedDate";
 
+    function comments() {
+        return hasMany( "Comment" );
+    }
+
 }

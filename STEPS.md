@@ -185,12 +185,15 @@ And lets customize the view a bit.
 <cfoutput>
 	<h1>Posts</h1>
 	<cfloop array="#prc.posts#" index="post">
-		<article>
-			<h2>#post.getTitle()#</h2>
-			<p>#post.getBody()#</p>
-		</article>
+		<div class="card mb-3">
+			<div class="card-body">
+				<h5 class="card-title">#post.getTitle()#</h5>
+				<p class="card-text">#post.getBody()#</p>
+			</div>
+		</div>
 	</cfloop>
 </cfoutput>
+
 ```
 
 Reinit the app and voila!  You can see your posts!
@@ -244,7 +247,24 @@ Here's the content of the view:
 </cfoutput>
 ```
 
-We can now view our post individually.
+We also add a link from our Posts.index page to the individual show view.
+
+```cfm
+<cfoutput>
+	<h1>Posts</h1>
+	<cfloop array="#prc.posts#" index="post">
+		<div class="card mb-3">
+			<div class="card-body">
+				<h5 class="card-title">#post.getTitle()#</h5>
+				<p class="card-text">#post.getBody()#</p>
+				<a href="#event.buildLink( "posts.#post.getId()#" )#" class="card-link">Read</a>
+			</div>
+		</div>
+	</cfloop>
+</cfoutput>
+```
+
+We can now view each post individually.
 
 ## Step 6
 Create route to create new posts.
@@ -297,6 +317,24 @@ function new( event, rc, prc ) {
 		<a href="#event.buildLink( "posts" )#" class="btn btn-outline">Back</a>
 		<button type="submit" class="btn btn-primary">Submit</button>
 	</form>
+</cfoutput>
+```
+
+We'll add a link from the index page to the new page.
+
+```cfm
+<cfoutput>
+	<h1>Posts</h1>
+	<a href="#event.buildLink( "posts.new" )#">Write a new post</a>
+	<cfloop array="#prc.posts#" index="post">
+		<div class="card mb-3">
+			<div class="card-body">
+				<h5 class="card-title">#post.getTitle()#</h5>
+				<p class="card-text">#post.getBody()#</p>
+				<a href="#event.buildLink( "posts.#post.getId()#" )#" class="card-link">Read</a>
+			</div>
+		</div>
+	</cfloop>
 </cfoutput>
 ```
 
@@ -434,6 +472,25 @@ function edit( event, rc, prc ) {
 ```
 
 Now we see our refactoring helping us out!
+
+We need a way to get to the edit page.  Let's add a link from our index page.
+
+```cfm
+<cfoutput>
+	<h1>Posts</h1>
+	<a href="#event.buildLink( "posts.new" )#">Write a new post</a>
+	<cfloop array="#prc.posts#" index="post">
+		<div class="card mb-3">
+			<div class="card-body">
+				<h5 class="card-title">#post.getTitle()#</h5>
+				<p class="card-text">#post.getBody()#</p>
+				<a href="#event.buildLink( "posts.#post.getId()#" )#" class="card-link">Read</a>
+				<a href="#event.buildLink( "posts.#post.getId()#.edit")#" class="card-link">Edit</a>
+			</div>
+		</div>
+	</cfloop>
+</cfoutput>
+```
 
 Lastly, we need to add an `update` action to handle persisting the changes to our database.
 After saving, we will redirect to the `show` action for the edited Post.
@@ -589,3 +646,61 @@ component {
 ```
 
 And now our new form works.  But we can't see it on the page yet!  We'll cover that next.
+
+## Step 11
+Display comments on the Posts.show page
+
+Now that we have comments associated with a Post, let's show those comments on the Posts.show view.
+We start by defining a relationship on Posts.
+
+```cfc
+// models/Post.cfc
+component extends="quick.models.BaseEntity" accessors="true" {
+
+    property name="id";
+    property name="title";
+    property name="body";
+    property name="createdDate";
+    property name="modifiedDate";
+
+    function comments() {
+        return hasMany( "Comment" );
+    }
+
+}
+```
+
+Since we are following Quick conventions, we don't have to specify the foreign and local keys.
+We can now access the relationship and execute it by calling the relationship name
+prefixed by `get` - `getComments()`.  We'll add a `<cfloop>` to the view to show the comments.
+
+```cfm
+<!-- views/posts/show.cfm -->
+<cfoutput>
+	<article>
+		<h2>#prc.post.getTitle()#</h2>
+		<p>#prc.post.getBody()#</p>
+	</article>
+	<a href="#event.buildLink( "posts" )#">Back</a>
+    <hr />
+    <h3>Comments</h3>
+    <cfloop array="#prc.post.getComments()#" index="comment">
+		<div class="card card-body bg-light mb-2">
+			<small>#dateTimeFormat( comment.getCreatedDate(), "full" )#</small>
+            <p>#comment.getBody()#</p>
+        </div>
+    </cfloop>
+    <hr />
+	#html.startForm( method = "POST", action = event.buildLink( "posts.#prc.post.getId()#.comments" ) )#
+		<div class="form-group">
+			<label for="body">Add a comment</label>
+			<textarea class="form-control" name="body" id="body" rows="3"></textarea>
+		</div>
+		<div class="form-group">
+			<button type="submit" class="btn btn-primary">Comment</button>
+		</div>
+	#html.endForm()#
+</cfoutput>
+```
+
+There we go!  Comments are now shown on each posts.  Note that we also include an empty state.
