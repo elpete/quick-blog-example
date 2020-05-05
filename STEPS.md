@@ -7,8 +7,10 @@ We run `box coldbox create app skeleton=cbTemplate-quick-with-auth` and let Comm
 We use the `quick-with-auth` template to handle the boilerplate of setting up Quick,
 setting up a datasource, as well as adding authentication and authorization to our app.
 
-Lastly, for this tutorial we will disable the `csrf` token auto-validation.
+For this tutorial, we will disable the `csrf` token auto-validation.
 Do so by running `box uninstall verify-csrf-interceptor`.
+
+Lastly, start a server using `box server start cfengine=lucee@5`.
 
 ## Step 2
 Set up datasource
@@ -871,16 +873,18 @@ This step adds a new form at the bottom of the `Posts.show` page to add a commen
         <p>#prc.post.getBody()#</p>
     </article>
     <a href="#event.buildLink( "posts" )#">Back</a>
-+   <hr />
-+   #html.startForm( method = "POST", action = event.buildLink( "posts.#prc.post.getId()#.comments" ) )#
-+ 	    <div class="form-group">
-+ 		    <label for="body">Add a comment</label>
-+ 		    <textarea class="form-control" name="body" id="body" rows="3"></textarea>
-+ 	    </div>
-+ 	    <div class="form-group">
-+ 		    <button type="submit" class="btn btn-primary">Comment</button>
-+ 	    </div>
-+   #html.endForm()#
++   <cfif auth().check()>
++       <hr />
++       #html.startForm( method = "POST", action = event.buildLink( "posts.#prc.post.getId()#.comments" ) )#
++ 	        <div class="form-group">
++ 		        <label for="body">Add a comment</label>
++     		    <textarea class="form-control" name="body" id="body" rows="3"></textarea>
++ 	        </div>
++ 	        <div class="form-group">
++ 		        <button type="submit" class="btn btn-primary">Comment</button>
++ 	        </div>
++       #html.endForm()#
++   </cfif>
 </cfoutput>
 ```
 
