@@ -930,6 +930,13 @@ component extends="quick.models.BaseEntity" accessors="true" {
     property name="createdDate";
     property name="modifiedDate";
 
+    function setBody( body ) {
+        arguments.body = replaceNoCase( arguments.body, chr( 13 ) & chr( 10 ), "<br>", "all" );
+        arguments.body = replaceNoCase( arguments.body, chr( 10 ), "<br>", "all" );
+        assignAttribute( "body", arguments.body );
+        return this;
+    }
+
 }
 ```
 
