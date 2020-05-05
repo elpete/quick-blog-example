@@ -7,6 +7,9 @@ We run `box coldbox create app skeleton=cbTemplate-quick-with-auth` and let Comm
 We use the `quick-with-auth` template to handle the boilerplate of setting up Quick,
 setting up a datasource, as well as adding authentication and authorization to our app.
 
+Lastly, for this tutorial we will disable the `csrf` token auto-validation.
+Do so by running `box uninstall verify-csrf-interceptor`.
+
 ## Step 2
 Set up datasource
 
@@ -346,7 +349,7 @@ on one route.
 function configure() {
     // ...
 +   get( "/posts/new", "Posts.new" );
-+   get( "/posts/:postId", "Posts.show" );
+    get( "/posts/:postId", "Posts.show" );
 +   route( "/posts" ).withHandler( "Posts" ).toAction( { "GET": "index", "POST": "create" } );
     // ...
 }
@@ -429,6 +432,47 @@ Lastly, we add the `create` action to handle creating the new Post.
 Normally this endpoint would need to handle validation as well.  We may come back to that in a later step.
 
 ## Step 8
+Fix textarea spacing using a custom setter.
+
+When you create a new post, you may notice that your line breaks are not preserved.
+We can fix this by replacing all newline characters with `<br>` tags when saving
+a Post.  We don't want to just do this on this one endpoint, though.  We will also
+need the same behavior when we eventually edit the Post.  Our solution is to
+define a custom setter function.
+
+To do this, we define a custom function called `setBody`.
+Inside this method we will do the conversion needed on the body and
+then call the `assignAttribute` function to store this attribute.
+
+```diff
+// models/entities/Post.cfc
+component extends="quick.models.BaseEntity" accessors="true" {
+
+    property name="id";
+    property name="title";
+    property name="body";
+    property name="userId";
+    property name="createdDate";
+    property name="modifiedDate";
+
+    function getExcerpt() {
+        return variables._str.limitWords( this.getBody(), 30 );
+    }
+
++   function setBody( body ) {
++       arguments.body = replaceNoCase( arguments.body, chr( 13 ) & chr( 10 ), "<br>", "all" );
++       arguments.body = replaceNoCase( arguments.body, chr( 10 ), "<br>", "all" );
++       assignAttribute( "body", arguments.body );
++       return this;
++   }
+
+}
+```
+
+Now when we pass data to our `body` attribute it will be automatically converted
+to be shown correctly later.
+
+## Step 9
 Refactor new post form to use blank Post.
 
 The next step is to add the edit and update actions.
@@ -519,7 +563,7 @@ to help send the correct method. (Read why here: https://coldbox.ortusbooks.com/
 
 With our refactor done, we are now ready to move on to the edit and update actions.
 
-## Step 9
+## Step 10
 Add edit and update actions for Posts.
 
 Let's start with the Router.  We mentioned previously that we would clean up the routes file
@@ -611,7 +655,7 @@ After saving, we will redirect to the `show` action for the edited Post.
 
 Again, you would want validation on this endpoint before saving to the database, but this does the trick for now!
 
-## Step 10
+## Step 11
 Allow deleting of Posts.
 
 Let's round out the CRUD actions on posts by adding a delete button to the edit page.
@@ -647,7 +691,7 @@ Additionally, we add the action to the `Posts` handler.
 
 That rounds out the CRUD actions!
 
-## Step 11
+## Step 12
 Add in User information for each Post.
 
 Let's take the next step and add a relationship from a Post to its author - a User.
@@ -668,6 +712,13 @@ component extends="quick.models.BaseEntity" accessors="true" {
 
     function getExcerpt() {
         return variables._str.limitWords( this.getBody(), 30 );
+    }
+
+    function setBody( body ) {
+        arguments.body = replaceNoCase( arguments.body, chr( 13 ) & chr( 10 ), "<br>", "all" );
+        arguments.body = replaceNoCase( arguments.body, chr( 10 ), "<br>", "all" );
+        assignAttribute( "body", arguments.body );
+        return this;
     }
 
 +   function author() {
@@ -724,7 +775,7 @@ Great!  Let's add it to our `Posts.index` view as well.
 </cfoutput>
 ```
 
-## Step 12
+## Step 13
 Fix the eager loading problem of Post -> Author
 
 We now run in to an interesting issue.  To see it better, let's do two things.
@@ -763,7 +814,7 @@ function index( event, rc, prc ) {
 
 When you reload the page, you will notice that our queries is back down to two!  Well done!
 
-## Step 13
+## Step 14
 Only show edit route for the user that wrote it.
 
 We mentioned above that when we defined the relationship between a Post
@@ -806,7 +857,7 @@ logged in User.
 (Of course, right now you could still manually go to the edit page.
 cbguard can help with this, but that's for a different tutorial.)
 
-## Step 14
+## Step 15
 Allow commenting on posts
 
 This step adds a new form at the bottom of the `Posts.show` page to add a comment.
@@ -916,7 +967,7 @@ component {
 And now our new form works.  But we can't see existing comments on the page yet!
 We'll cover that next.
 
-## Step 15
+## Step 16
 Display comments on the `Posts.show` page
 
 Now that we have comments associated with a Post, let's show those
@@ -935,6 +986,13 @@ component extends="quick.models.BaseEntity" accessors="true" {
 
     function getExcerpt() {
         return variables._str.limitWords( this.getBody(), 30 );
+    }
+
+    function setBody( body ) {
+        arguments.body = replaceNoCase( arguments.body, chr( 13 ) & chr( 10 ), "<br>", "all" );
+        arguments.body = replaceNoCase( arguments.body, chr( 10 ), "<br>", "all" );
+        assignAttribute( "body", arguments.body );
+        return this;
     }
 
     function author() {
@@ -986,7 +1044,7 @@ prefixed by `get` - `getComments()`.  We'll add a `<cfloop>` to the view to show
 There we go!  Comments are now shown on each posts.
 (Note that we also include an empty state. Good UI practice.)
 
-## Step 16
+## Step 17
 Refactor create methods to use relationships.
 
 Let's try something.  Using Postman or another tool like it send a POST request to
@@ -1085,7 +1143,7 @@ function create( event, rc, prc ) {
 This accomplishes the other goal we had in mind - this route will return
 a 404 Not Found if an invalid `postId` is passed.
 
-## Step 17
+## Step 18
 Introduce Tags.
 
 A Tag showcases a new relationship type - a many-to-many or `belongsToMany`
@@ -1188,6 +1246,13 @@ component extends="quick.models.BaseEntity" accessors="true" {
 
     function getExcerpt() {
         return variables._str.limitWords( this.getBody(), 30 );
+    }
+
+    function setBody( body ) {
+        arguments.body = replaceNoCase( arguments.body, chr( 13 ) & chr( 10 ), "<br>", "all" );
+        arguments.body = replaceNoCase( arguments.body, chr( 10 ), "<br>", "all" );
+        assignAttribute( "body", arguments.body );
+        return this;
     }
 
     function author() {
@@ -1382,7 +1447,7 @@ Last step - let's add the list of tags to the `Posts.show` and `Posts.index` act
 
 Step back and check out your work!
 
-## Step 18
+## Step 19
 Eager load tags on `Posts.index`.
 
 Check out your `Posts.index` action now.  If many of your Posts have tags,
