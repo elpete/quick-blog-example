@@ -157,7 +157,7 @@ component {
 
     function index( event, rc, prc ) {
         prc.posts = getInstance( "Post" ).all();
-        event.setView( "Posts/index" );
+        event.setView( "posts/index" );
     }
 
 }
@@ -757,7 +757,7 @@ method names.  Here's is our adjusted `Posts.index` action:
 function index( event, rc, prc ) {
 -   prc.posts = getInstance( "Post" ).all();
 +   prc.posts = getInstance( "Post" ).with( "author" ).all();
-    event.setView( "Posts/index" );
+    event.setView( "posts/index" );
 }
 ```
 
@@ -1393,7 +1393,7 @@ Let's reach for eager loading and the `with` method again.
 function index( event, rc, prc ) {
 -   prc.posts = getInstance( "Post" ).with( "author" ).all();
 +   prc.posts = getInstance( "Post" ).with( [ "author", "tags" ] ).all();
-    event.setView( "Posts/index" );
+    event.setView( "posts/index" );
 }
 ```
 
