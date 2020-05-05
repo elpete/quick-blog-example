@@ -2,7 +2,7 @@
 
 ## Step 1
 Add quick-with-auth template
-We run `box coldbox create app skeleton=quick-with-auth` and let CommandBox do its magic!
+We run `box coldbox create app skeleton=cbTemplate-quick-with-auth` and let CommandBox do its magic!
 
 We use the `quick-with-auth` template to handle the boilerplate of setting up Quick,
 setting up a datasource, as well as adding authentication and authorization to our app.
