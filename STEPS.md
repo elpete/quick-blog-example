@@ -1,8 +1,11 @@
 # Build a Blog in 30 minutes with ColdBox and Quick
 
 ## Step 1
-Add ColdBox's advanced-script template
-We run `box coldbox create app` and let CommandBox do its magic!
+Add quick-with-auth template
+We run `box coldbox create app skeleton=quick-with-auth` and let CommandBox do its magic!
+
+We use the `quick-with-auth` template to handle the boilerplate of setting up Quick,
+setting up a datasource, as well as adding authentication and authorization to our app.
 
 ## Step 2
 Set up datasource
@@ -29,14 +32,15 @@ ENVIRONMENT=development
 # Database Information
 DB_CONNECTIONSTRING=jdbc:mysql://127.0.0.1:3306/quick_blog_example?useSSL=false&useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC&useLegacyDatetimeCode=true
 DB_CLASS=com.mysql.jdbc.Driver
-DB_BUNDLENAME=com.mysql.jdbc
-DB_BUNDLEVERSION=5.1.38
 DB_DRIVER=MySQL
 DB_HOST=127.0.0.1
 DB_PORT=3306
 DB_DATABASE=quick_blog_example
+DB_SCHEMA=quick_blog_example
 DB_USER=root
 DB_PASSWORD=root
+DB_BUNDLENAME=com.mysql.jdbc
+DB_BUNDLEVERSION=5.1.38
 ```
 
 Now, when we start our server, our datasource will be available.
@@ -54,37 +58,20 @@ component {
 }
 ```
 
+Also with our template we get a migration for our users table.  We run it up using commandbox-migrations.
+
+```sh
+box migrate up
+```
+
+We can now play around with our site, register new users, and log in.
+
 ## Step 3
 Create a posts table
 
 There are many different ways we could create a `posts` table in our database.
-We are going to use commandbox-migrations and cfmigrations here, but you
-can create this any way you please.
-
-For our purposes we will install `commandbox-migrations` next.
-
-```sh
-box install commandbox-migrations
-```
-
-Next we will add the needed configuration to our `box.json`
-
-```json
-{
-	"cfmigrations":{
-        "schema":"${DB_SCHEMA}",
-        "connectionInfo":{
-            "password":"${DB_PASSWORD}",
-            "connectionString":"${DB_CONNECTIONSTRING}",
-            "class":"${DB_CLASS}",
-            "username":"${DB_USER}",
-            "bundleName":"${DB_BUNDLENAME}",
-            "bundleVersion":"{DB_BUNDLEVERSION}"
-        },
-        "defaultGrammar":"AutoDiscover@qb"
-    }
-}
-```
+We are going to use commandbox-migrations and cfmigrations here, as it comes
+installed with the quick-with-auth template, but you can create this any way you please.
 
 Now we will add a migration for posts using CommandBox.
 
@@ -102,6 +89,10 @@ component {
             table.increments( "id" );
             table.string( "title" );
             table.text( "body" );
+            table.unsignedInteger( "userId" )
+                .references( "id" )
+                .onTable( "users" )
+                .onDelete( "CASCADE" );
             table.timestamp( "createdDate" );
             table.timestamp( "modifiedDate" );
         } );
@@ -117,34 +108,16 @@ component {
 And run the migration up.
 
 ```sh
-box migrate install
 box migrate up
 ```
 
 ## Step 4
 Define a Post entity and show all posts.
 
-Start by installing Quick.
-
-```sh
-box install quick
-```
-
-We then need to add the necessary configuration.  The first piece is adding a mapping to `Application.cfc`.
-
-```cfc
-// Application.cfc
-component {
-    // ...
-	this.mappings[ "/quick" ] = COLDBOX_APP_ROOT_PATH & "/modules/quick";
-    // ...
-}
-```
-
 Now we define our first Quick entity - `models/Post.cfc`.
 
-We start by extending `quick.models.BaseEntity` and adding all the
-attributes we want to select from the database table.
+We start by extending `quick.models.BaseEntity` and adding all the attributes
+we want to select from the database table.
 
 ```cfc
 // models/Post.cfc
@@ -153,11 +126,15 @@ component extends="quick.models.BaseEntity" accessors="true" {
     property name="id";
     property name="title";
     property name="body";
+    property name="userId";
     property name="createdDate";
     property name="modifiedDate";
 
 }
 ```
+
+While we will make a way to create a post directly in the app, for now just create a Post directly
+in the database.
 
 With our entity created and some data in the table we can tie in Quick to ColdBox and show the data.
 Let's create a `Posts` handler with an `index` action. (You can use CommandBox for this if you like.)
@@ -184,16 +161,23 @@ And lets customize the view a bit.
 <!-- views/posts/index.cfm -->
 <cfoutput>
 	<h1>Posts</h1>
-	<cfloop array="#prc.posts#" index="post">
-		<div class="card mb-3">
-			<div class="card-body">
-				<h5 class="card-title">#post.getTitle()#</h5>
-				<p class="card-text">#post.getBody()#</p>
-			</div>
-		</div>
-	</cfloop>
+    <cfif prc.posts.isEmpty()>
+        <div class="card mb-3">
+            <div class="card-body">
+                <p class="card-text">No posts yet.</p>
+            </div>
+        </div>
+    <cfelse>
+        <cfloop array="#prc.posts#" index="post">
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">#post.getTitle()#</h5>
+                    <p class="card-text">#post.getBody()#</p>
+                </div>
+            </div>
+        </cfloop>
+    </cfif>
 </cfoutput>
-
 ```
 
 Reinit the app and voila!  You can see your posts!
@@ -250,17 +234,26 @@ Here's the content of the view:
 We also add a link from our Posts.index page to the individual show view.
 
 ```cfm
+<!-- views/posts/index.cfm -->
 <cfoutput>
 	<h1>Posts</h1>
-	<cfloop array="#prc.posts#" index="post">
-		<div class="card mb-3">
-			<div class="card-body">
-				<h5 class="card-title">#post.getTitle()#</h5>
-				<p class="card-text">#post.getBody()#</p>
-				<a href="#event.buildLink( "posts.#post.getId()#" )#" class="card-link">Read</a>
-			</div>
-		</div>
-	</cfloop>
+    <cfif prc.posts.isEmpty()>
+        <div class="card mb-3">
+            <div class="card-body">
+                <p class="card-text">No posts yet.</p>
+            </div>
+        </div>
+    <cfelse>
+        <cfloop array="#prc.posts#" index="post">
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">#post.getTitle()#</h5>
+                    <p class="card-text">#post.getBody()#</p>
+                    <a href="#event.buildLink( "posts.#post.getId()#" )#" class="card-link">Read</a>
+                </div>
+            </div>
+        </cfloop>
+    </cfif>
 </cfoutput>
 ```
 
@@ -278,7 +271,7 @@ The POST route needs to be merged with the already defined GET request.
 Each route can only be defined once, so we need to define all the actions
 on one route.
 
-```diff
+```cfc
 // config/Router.cfc
 function configure() {
     // ...
@@ -294,14 +287,16 @@ by using ColdBox's `resources` conventions.
 
 Next we define the `new` action which should show a form to create a new Post.
 
-```
+```cfc
 // handlers/Posts.cfc
-function new( event, rc, prc ) {
+function new( event, rc, prc ) secured {
     event.setView( "posts/new" );
 }
 ```
 
-```
+(The `secured` annotation here ensure a user must be logged in to access the route.)
+
+```cfm
 <!-- views/posts/new.cfm -->
 <cfoutput>
 	<h2>Create a new post</h2>
@@ -323,29 +318,39 @@ function new( event, rc, prc ) {
 We'll add a link from the index page to the new page.
 
 ```cfm
+<!-- views/posts/index.cfm -->
 <cfoutput>
 	<h1>Posts</h1>
 	<a href="#event.buildLink( "posts.new" )#">Write a new post</a>
-	<cfloop array="#prc.posts#" index="post">
-		<div class="card mb-3">
-			<div class="card-body">
-				<h5 class="card-title">#post.getTitle()#</h5>
-				<p class="card-text">#post.getBody()#</p>
-				<a href="#event.buildLink( "posts.#post.getId()#" )#" class="card-link">Read</a>
-			</div>
-		</div>
-	</cfloop>
+    <cfif prc.posts.isEmpty()>
+        <div class="card mb-3">
+            <div class="card-body">
+                <p class="card-text">No posts yet.</p>
+            </div>
+        </div>
+    <cfelse>
+        <cfloop array="#prc.posts#" index="post">
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">#post.getTitle()#</h5>
+                    <p class="card-text">#post.getBody()#</p>
+                    <a href="#event.buildLink( "posts.#post.getId()#" )#" class="card-link">Read</a>
+                </div>
+            </div>
+        </cfloop>
+    </cfif>
 </cfoutput>
 ```
 
 Lastly, we add the `create` action to handle creating the new Post.
 
-```
+```cfc
 // handlers/Post.cfc
-function create( event, rc, prc ) {
+function create( event, rc, prc ) secured {
     getInstance( "Post" ).create( {
         "title": rc.title,
         "body": rc.body,
+        "userId": auth().user().getId()
     } );
     relocate( "posts" );
 }
@@ -367,7 +372,7 @@ First, let's edit the `new` action to pass a blank Post.
 
 ```cfc
 // handlers/Posts.cfc
-function new( event, rc, prc ) {
+function new( event, rc, prc ) secured {
     prc.post = getInstance( "Post" );
     event.setView( "posts/new" );
 }
@@ -428,7 +433,6 @@ to help send the correct method. (Read why here: https://coldbox.ortusbooks.com/
 		"action": event.buildLink( "posts" )
 	} )#
 </cfoutput>
-
 ```
 
 With our refactor done, we are now ready to move on to the edit and update actions.
@@ -441,7 +445,7 @@ using ColdBox's `resources` convention.  The `resources` convention creates seve
 routes for common CREATE, READ, UPDATE, and DELETE (CRUD) actions.
 We can replace all our custom routes with this one call:
 
-```
+```cfc
 // config/Router.cfc
 function configure() {
     // ...
@@ -454,7 +458,7 @@ for `edit`, `update`, and `delete`.  Now it's time to create the new `edit` acti
 
 ```cfc
 // handlers/Posts.cfc
-function edit( event, rc, prc ) {
+function edit( event, rc, prc ) secured {
     prc.post = getInstance( "Post" ).findOrFail( rc.postId );
     event.setView( "posts/edit" );
 }
@@ -476,6 +480,7 @@ Now we see our refactoring helping us out!
 We need a way to get to the edit page.  Let's add a link from our index page.
 
 ```cfm
+<!-- views/posts/index.cfm -->
 <cfoutput>
 	<h1>Posts</h1>
 	<a href="#event.buildLink( "posts.new" )#">Write a new post</a>
@@ -492,11 +497,40 @@ We need a way to get to the edit page.  Let's add a link from our index page.
 </cfoutput>
 ```
 
+```cfm
+<!-- views/posts/index.cfm -->
+<cfoutput>
+	<h1>Posts</h1>
+	<a href="#event.buildLink( "posts.new" )#">Write a new post</a>
+    <cfif prc.posts.isEmpty()>
+        <div class="card mb-3">
+            <div class="card-body">
+                <p class="card-text">No posts yet.</p>
+            </div>
+        </div>
+    <cfelse>
+        <cfloop array="#prc.posts#" index="post">
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">#post.getTitle()#</h5>
+                    <p class="card-text">#post.getBody()#</p>
+                    <a href="#event.buildLink( "posts.#post.getId()#" )#" class="card-link">Read</a>
+                    <a href="#event.buildLink( "posts.#post.getId()#.edit")#" class="card-link">Edit</a>
+                </div>
+            </div>
+        </cfloop>
+    </cfif>
+</cfoutput>
+```
+
+When we add a relationship back to the User that wrote the post, we will come back
+here to make the edit route on show up for the User that wrote it.
+
 Lastly, we need to add an `update` action to handle persisting the changes to our database.
 After saving, we will redirect to the `show` action for the edited Post.
 
 ```cfc
-function update( event, rc, prc ) {
+function update( event, rc, prc ) secured {
     var post = getInstance( "Post" ).findOrFail( rc.postId );
     post.update( {
         "title": rc.title,
@@ -543,6 +577,117 @@ function delete( event, rc, prc ) {
 That rounds out the CRUD actions!
 
 ## Step 10
+Add in User information for each Post.
+
+Let's take the next step and add a relationship from a Post to its author - a User.
+This is done by adding a method to the Post entity.  We can name the method anything
+we want - whatever makes sense for the domain.  In this case, we are choosing to use
+`author` to represent the relationship between a Post and the User who wrote it.
+
+```cfc
+// models/Post.cfc
+component extends="quick.models.BaseEntity" accessors="true" {
+
+    property name="id";
+    property name="title";
+    property name="body";
+    property name="userId";
+    property name="createdDate";
+    property name="modifiedDate";
+
+    function author() {
+        return belongsTo( "User" );
+    }
+
+}
+```
+
+(Since we are following Quick conventions, we don't have to specify the foreign and local keys.)
+
+We can access the User instance associated with a Post by prefixing the relationship
+method name with `get` - `getAuthor` in this case.  Let's start by adding the
+author's email to the `Posts.show` page.
+
+```cfm
+<!-- views/posts/show.cfm -->
+<cfoutput>
+	<article>
+		<h2>#prc.post.getTitle()#</h2>
+        <small>By #prc.post.getAuthor().getEmail()#</small>
+		<p>#prc.post.getBody()#</p>
+	</article>
+	<a href="#event.buildLink( "posts" )#">Back</a>
+</cfoutput>
+```
+
+Great!  Let's add it to our `Posts.index` view as well.
+
+```cfm
+<!-- views/posts/index.cfm -->
+<cfoutput>
+	<h1>Posts</h1>
+	<a href="#event.buildLink( "posts.new" )#">Write a new post</a>
+    <cfif prc.posts.isEmpty()>
+        <div class="card mb-3">
+            <div class="card-body">
+                <p class="card-text">No posts yet.</p>
+            </div>
+        </div>
+    <cfelse>
+        <cfloop array="#prc.posts#" index="post">
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">#post.getTitle()#</h5>
+                    <h6 class="card-subtitle mb-2 text-muted">By #post.getAuthor().getEmail()#</h6>
+                    <p class="card-text">#post.getBody()#</p>
+                    <a href="#event.buildLink( "posts.#post.getId()#" )#" class="card-link">Read</a>
+                    <a href="#event.buildLink( "posts.#post.getId()#.edit")#" class="card-link">Edit</a>
+                </div>
+            </div>
+        </cfloop>
+    </cfif>
+</cfoutput>
+```
+
+## Step 11
+Fix the eager loading problem of Post -> Author
+
+We now run in to an interesting issue.  To see it better, let's do two things.
+
+First, let's add a bunch more posts to our application.  At least 10.
+
+Second, let's install the `cbdebugger` module.  We'll install it as a dev dependency.
+It will allow us to see all the queries being executed and entities loaded by Quick.
+
+```sh
+box install cbdebugger --saveDev
+```
+
+Now load the `Posts.index` route and take a look at your queries.
+If you have 10 posts, you will see 11 queries.  This is true even if
+all the posts are written by the same User.  This isn't good.  You can see
+how this can balloon out of control and slow down your application.  This problem
+is called the N+1 problem, named for having one more query executed that the
+number of entities returned.  We can solve this problem with eager loading.
+
+Eager loading will grab all the needed related entities in one query and then
+match them up to their parent entities.  It will reduce the number of queries we
+run to 2, no matter how many Posts we are loading.
+
+To use eager loading, you use the `with` method when executing your query.
+`with` takes a single relationship method name or an array of relationship
+method names.  Here's is our adjusted `Posts.index` action:
+
+```
+function index( event, rc, prc ) {
+    prc.posts = getInstance( "Post" ).with( "author" ).all();
+    event.setView( "Posts/index" );
+}
+```
+
+When you reload the page, you will notice that our queries is back down to two!  Well done!
+
+## Step 12
 Allow commenting on posts
 
 This step adds a new form at the bottom of the `Posts.show` page to add a comment.
@@ -552,6 +697,7 @@ This step adds a new form at the bottom of the `Posts.show` page to add a commen
 <cfoutput>
 	<article>
 		<h2>#prc.post.getTitle()#</h2>
+        <small>By #prc.post.getAuthor().getEmail()#</small>
 		<p>#prc.post.getBody()#</p>
 	</article>
 	<a href="#event.buildLink( "posts" )#">Back</a>
@@ -578,7 +724,7 @@ box coldbox create handler name=PostComments actions=create --!integrationTests
 
 ```cfc
 // handlers/PostComments.cfc
-component {
+component secured {
 
 	function create( event, rc, prc ) {
         getInstance( "Comment" ).create( {
@@ -598,7 +744,7 @@ We also need to route to this new action.  This route needs to go above the othe
 function configure() {
     // ...
     post( "/posts/:postId/comments", "PostComments.create" );
-    // ... the other post routes
+    // ... the other Post routes
 }
 ```
 
@@ -617,7 +763,7 @@ component extends="quick.models.BaseEntity" accessors="true" {
 }
 ```
 
-Now we will add a migration for comments using CommandBox.
+Now we will add a migration for comments using commandbox-migrations.
 
 ```sh
 box migrate create create_comments_table
@@ -632,7 +778,10 @@ component {
         schema.create( "comments", function( table ) {
             table.increments( "id" );
             table.text( "body" );
-            table.unsignedInteger( "postId" );
+            table.unsignedInteger( "postId" )
+                .references( "id" )
+                .onTable( "posts" )
+                .onDelete( "CASCADE" );
             table.timestamp( "createdDate" );
             table.timestamp( "modifiedDate" );
         } );
@@ -647,10 +796,10 @@ component {
 
 And now our new form works.  But we can't see it on the page yet!  We'll cover that next.
 
-## Step 11
-Display comments on the Posts.show page
+## Step 13
+Display comments on the `Posts.show` page
 
-Now that we have comments associated with a Post, let's show those comments on the Posts.show view.
+Now that we have comments associated with a Post, let's show those comments on the `Posts.show` view.
 We start by defining a relationship on Posts.
 
 ```cfc
@@ -660,8 +809,13 @@ component extends="quick.models.BaseEntity" accessors="true" {
     property name="id";
     property name="title";
     property name="body";
+    property name="userId";
     property name="createdDate";
     property name="modifiedDate";
+
+    function author() {
+        return belongsTo( "User" );
+    }
 
     function comments() {
         return hasMany( "Comment" );
@@ -670,7 +824,8 @@ component extends="quick.models.BaseEntity" accessors="true" {
 }
 ```
 
-Since we are following Quick conventions, we don't have to specify the foreign and local keys.
+(Since we are following Quick conventions, we don't have to specify the foreign and local keys.)
+
 We can now access the relationship and execute it by calling the relationship name
 prefixed by `get` - `getComments()`.  We'll add a `<cfloop>` to the view to show the comments.
 
@@ -679,6 +834,7 @@ prefixed by `get` - `getComments()`.  We'll add a `<cfloop>` to the view to show
 <cfoutput>
 	<article>
 		<h2>#prc.post.getTitle()#</h2>
+        <small>By #prc.post.getAuthor().getEmail()#</small>
 		<p>#prc.post.getBody()#</p>
 	</article>
 	<a href="#event.buildLink( "posts" )#">Back</a>
@@ -703,4 +859,4 @@ prefixed by `get` - `getComments()`.  We'll add a `<cfloop>` to the view to show
 </cfoutput>
 ```
 
-There we go!  Comments are now shown on each posts.  Note that we also include an empty state.
+There we go!  Comments are now shown on each posts.  (Note that we also include an empty state.)
