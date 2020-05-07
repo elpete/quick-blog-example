@@ -34,6 +34,8 @@ docker run -d \
 
 Next, we'll fill out our `.env` file.
 
+> Hint: Use `dotenv populate` from `commandbox-dotenv` to walk you through this easily.
+
 ```properties
 # ColdBox Environment
 APPNAME=ColdBox
@@ -924,7 +926,15 @@ function configure() {
 }
 ```
 
-Finally we need a new Comment entity.
+To create the Comment entity and migration, we are going to use a new CommandBox module - `quick-commands`.
+This gives you a handy `quick entity create` command.  It can also specify attributes, relationships, or
+even a migration to add when generating the new entity file.
+
+```sh
+box quick entity create name=Comment attributes=id,body,postId,userId,createdDate,modifiedDate relationships=belongsTo:User:commenter --migration
+```
+
+Let's take a look at the new Comment entity that was created for us
 
 ```cfc
 // models/entities/Comment.cfc
@@ -937,13 +947,6 @@ component extends="quick.models.BaseEntity" accessors="true" {
     property name="createdDate";
     property name="modifiedDate";
 
-    function setBody( body ) {
-        arguments.body = replaceNoCase( arguments.body, chr( 13 ) & chr( 10 ), "<br>", "all" );
-        arguments.body = replaceNoCase( arguments.body, chr( 10 ), "<br>", "all" );
-        assignAttribute( "body", arguments.body );
-        return this;
-    }
-
     function commenter() {
         return belongsTo( "User" );
     }
@@ -951,13 +954,35 @@ component extends="quick.models.BaseEntity" accessors="true" {
 }
 ```
 
-Now we will add a migration for comments using commandbox-migrations.
+Wow!  So much of the work automatically done for us.  We just need to add a custom setter for `body`.
 
-```sh
-box migrate create create_comments_table
+```diff
+// models/entities/Comment.cfc
+component extends="quick.models.BaseEntity" accessors="true" {
+
+    property name="id";
+    property name="body";
+    property name="postId";
+    property name="userId";
+    property name="createdDate";
+    property name="modifiedDate";
+
++   function setBody( body ) {
++       arguments.body = replaceNoCase( arguments.body, chr( 13 ) & chr( 10 ), "<br>", "all" );
++       arguments.body = replaceNoCase( arguments.body, chr( 10 ), "<br>", "all" );
++       assignAttribute( "body", arguments.body );
++       return this;
++   }
++
+    function commenter() {
+        return belongsTo( "User" );
+    }
+
+}
 ```
 
-Fill in the newly created migration file with the code to create the `posts` table.
+The `quick entity create` command also generated a migration thanks to our `--migration` flag called `create_comments_table`.
+Let's fill out the migration file now.
 
 ```cfc
 component {
@@ -985,6 +1010,8 @@ component {
 
 }
 ```
+
+And migrate up the database.
 
 ```sh
 box migrate up
@@ -1244,27 +1271,6 @@ between our Post entity and our Tag entity, Quick will use a default
 of `posts_tags`.  You are, of course, free to use your own conventions.
 
 ```sh
-box migrate create create_tags_table
-```
-
-```cfc
-component {
-
-    function up( schema, query ) {
-        schema.create( "tags", function( table ) {
-            table.increments( "id" );
-            table.string( "name" );
-        } );
-    }
-
-    function down( schema, query ) {
-        schema.drop( "tags" );
-    }
-
-}
-```
-
-```sh
 box migrate create create_posts_tags_table
 ```
 
@@ -1293,11 +1299,38 @@ component {
 }
 ```
 
+We can create the Tag entity and migration using `quick-commands` again.
+
+```sh
+box quick entity create name=Tag attributes=id,name relationships=belongsToMany:Post --migration
+```
+
+Let's fill out our migration first.
+
+```cfc
+component {
+
+    function up( schema, query ) {
+        schema.create( "tags", function( table ) {
+            table.increments( "id" );
+            table.string( "name" );
+        } );
+    }
+
+    function down( schema, query ) {
+        schema.drop( "tags" );
+    }
+
+}
+```
+
+And run all our migrations up.
+
 ```sh
 box migrate up
 ```
 
-Let's create our Tag entity next.
+Our auto-generated Tag entity is good to go, but let's take a look at it anyway.
 
 ```cfc
 // models/entities/Tag.cfc
