@@ -844,7 +844,7 @@ is one) is the author of that Post.
                     <h6 class="card-subtitle mb-2 text-muted">By #post.getAuthor().getEmail()#</h6>
                     <p class="card-text">#post.getExcerpt()#</p>
                     <a href="#event.buildLink( "posts.#post.getId()#" )#" class="card-link">Read</a>
-+                   <cfif auth().check() && auth().user().is( post.getAuthor() )>
++                   <cfif auth().check() && auth().user().isSameAs( post.getAuthor() )>
                        <a href="#event.buildLink( "posts.#post.getId()#.edit")#" class="card-link">Edit</a>
 +                   </cfif>
                 </div>
