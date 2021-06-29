@@ -7,9 +7,6 @@ We run `box coldbox create app skeleton=cbTemplate-quick-with-auth` and let Comm
 We use the `quick-with-auth` template to handle the boilerplate of setting up Quick,
 setting up a datasource, as well as adding authentication and authorization to our app.
 
-For this tutorial, we will disable the `csrf` token auto-validation.
-Do so by running `box uninstall verify-csrf-interceptor`.
-
 Lastly, start a server using `box server start cfengine=lucee@5`.
 
 ## Step 2
@@ -37,8 +34,11 @@ Next, we'll fill out our `.env` file.
 > Hint: Use `dotenv populate` from `commandbox-dotenv` to walk you through this easily.
 
 ```properties
+Edit your `.env` file to connect to your database.
+
+```env
 # ColdBox Environment
-APPNAME=ColdBox
+APPNAME=quick_blog_example
 ENVIRONMENT=development
 
 # Database Information
@@ -56,20 +56,6 @@ DB_BUNDLEVERSION=5.1.38
 ```
 
 Now, when we start our server, our datasource will be available.
-
-Last, we will configure our new datasource as our default datasource in `Application.cfc`:
-
-```diff
-// Application.cfc
-component {
-    // ...
-
--  this.datasource = "coldbox";
-+  this.datasource = "quick_blog_example";
-
-    // ...
-}
-```
 
 Also with our template we get a migration for our users table.  We run it up using commandbox-migrations.
 
@@ -98,16 +84,16 @@ Fill in the newly created migration file with the code to create the `posts` tab
 component {
 
     function up( schema, query ) {
-        schema.create( "posts", function( table ) {
-            table.increments( "id" );
-            table.string( "title" );
-            table.text( "body" );
-            table.unsignedInteger( "userId" )
+        schema.create( "posts", function( t ) {
+            t.increments( "id" );
+            t.string( "title" );
+            t.text( "body" );
+            t.unsignedInteger( "userId" )
                 .references( "id" )
                 .onTable( "users" )
                 .onDelete( "CASCADE" );
-            table.timestamp( "createdDate" );
-            table.timestamp( "modifiedDate" );
+            t.timestamp( "createdDate" );
+            t.timestamp( "modifiedDate" );
         } );
     }
 
@@ -793,7 +779,18 @@ It will allow us to see all the queries being executed and entities loaded by Qu
 box install cbdebugger --saveDev
 ```
 
-Now load the `Posts.index` route and take a look at your queries.
+We will need to configure cbdebugger to show the qb / Quick panel.  Add this to the
+`development` method of your `config/ColdBox.cfc`:
+
+```cfc
+moduleSettings.cbdebugger.qb = {
+    enabled: true,
+    expanded: true,
+    logParams: true
+};
+```
+
+Now, reinit and load the `Posts.index` route and take a look at your queries.
 If you have 10 posts, you will see 11 queries.  This is true even if
 all the posts are written by the same User.  This isn't good.  You can see
 how this can balloon out of control and slow down your application.  This problem
@@ -860,7 +857,7 @@ Great!  Now we will only see the edit link if the Post was written by the
 logged in User.
 
 (Of course, right now you could still manually go to the edit page.
-cbguard can help with this, but that's for a different tutorial.)
+cbsecurity can help with this, but that's for a different tutorial.)
 
 ## Step 15
 Allow commenting on posts
@@ -896,7 +893,7 @@ a top-level comments handler and passing a `postId` along with the comment body.
 Both work and are valid.  Let's generate our `PostComments.cfc` handler with CommandBox.
 
 ```sh
-box coldbox create handler name=PostComments actions=create --!integrationTests
+box coldbox create handler name=PostComments actions=create --!integrationTests --!views
 ```
 
 ```cfc
@@ -988,19 +985,19 @@ Let's fill out the migration file now.
 component {
 
     function up( schema, query ) {
-        schema.create( "comments", function( table ) {
-            table.increments( "id" );
-            table.text( "body" );
-            table.unsignedInteger( "postId" )
+        schema.create( "comments", function( t ) {
+            t.increments( "id" );
+            t.text( "body" );
+            t.unsignedInteger( "postId" )
                 .references( "id" )
                 .onTable( "posts" )
                 .onDelete( "CASCADE" );
-            table.unsignedInteger( "userId" )
+            t.unsignedInteger( "userId" )
                 .references( "id" )
                 .onTable( "users" )
                 .onDelete( "CASCADE" );
-            table.timestamp( "createdDate" );
-            table.timestamp( "modifiedDate" );
+            t.timestamp( "createdDate" );
+            t.timestamp( "modifiedDate" );
         } );
     }
 
@@ -1263,42 +1260,6 @@ and a Tag can be associated with 0 or more Posts.
 
 (For this example, we will create the Tags in the database manually.)
 
-Let's begin with a migration file.  Two migrations, actually.  That is
-because to represent a many-to-many relationship you need an
-intermediate or pivot table.  By default, Quick uses the table names of each
-entity in alphabetical order separated by an underscore.  So for the table
-between our Post entity and our Tag entity, Quick will use a default
-of `posts_tags`.  You are, of course, free to use your own conventions.
-
-```sh
-box migrate create create_posts_tags_table
-```
-
-```cfc
-component {
-
-    function up( schema, query ) {
-        schema.create( "posts_tags", function( table ) {
-            table.unsignedInteger( "postId" )
-                .references( "id" )
-                .onTable( "posts" )
-                .onDelete( "CASCADE" );
-            table.unsignedInteger( "tagId" )
-                .references( "id" )
-                .onTable( "tags" )
-                .onDelete( "CASCADE" );
-
-            table.primaryKey( [ "postId", "tagId" ] );
-        } );
-    }
-
-    function down( schema, query ) {
-        schema.drop( "posts_tags" );
-    }
-
-}
-```
-
 We can create the Tag entity and migration using `quick-commands` again.
 
 ```sh
@@ -1311,14 +1272,49 @@ Let's fill out our migration first.
 component {
 
     function up( schema, query ) {
-        schema.create( "tags", function( table ) {
-            table.increments( "id" );
-            table.string( "name" );
+        schema.create( "tags", function( t ) {
+            t.increments( "id" );
+            t.string( "name" );
         } );
     }
 
     function down( schema, query ) {
         schema.drop( "tags" );
+    }
+
+}
+```
+
+Next, we'll look at the pivot table. In order to represent a many-to-many
+relationship you need an intermediate or pivot table.  By default, Quick uses the
+table names of each entity in alphabetical order separated by an underscore.  So for the table
+between our Post entity and our Tag entity, Quick will use a default
+of `posts_tags`.  You are, of course, free to use your own conventions.
+
+```sh
+box migrate create create_posts_tags_table
+```
+
+```cfc
+component {
+
+    function up( schema, query ) {
+        schema.create( "posts_tags", function( t ) {
+            t.unsignedInteger( "postId" )
+                .references( "id" )
+                .onTable( "posts" )
+                .onDelete( "CASCADE" );
+            t.unsignedInteger( "tagId" )
+                .references( "id" )
+                .onTable( "tags" )
+                .onDelete( "CASCADE" );
+
+            t.primaryKey( [ "postId", "tagId" ] );
+        } );
+    }
+
+    function down( schema, query ) {
+        schema.drop( "posts_tags" );
     }
 
 }
@@ -1509,7 +1505,7 @@ Last step - let's add the list of tags to the `Posts.show` and `Posts.index` act
 -       <small class="mb-4">By #prc.post.getAuthor().getEmail()#</small>
 +       <small>By #prc.post.getAuthor().getEmail()#</small>
 +       <div class="mb-4">
-+           <cfloop array="#prc.post.getTags()#"s index="tag">
++           <cfloop array="#prc.post.getTags()#" index="tag">
 +               <span class="badge badge-pill badge-info">#tag.getName()#</span>
 +           </cfloop>
 +       </div>
